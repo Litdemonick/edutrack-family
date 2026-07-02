@@ -3,14 +3,18 @@
     "source": "functions"
   },
   "firestore": {
-    "rules": "firestore.rules"
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
   },
   "flutter": {
     "platforms": {
       "android": {
         "default": {
           "projectId": "edutrack-family",
-          "appId": "1:378454359271:android:79fbd0fedc83eb6b197642",
+          "appId": "1:378454359271:android:a525fb0c1fd65510197642",
           "fileOutput": "android/app/google-services.json"
         }
       },
@@ -18,7 +22,7 @@
         "lib/firebase_options.dart": {
           "projectId": "edutrack-family",
           "configurations": {
-            "android": "1:378454359271:android:79fbd0fedc83eb6b197642",
+            "android": "1:378454359271:android:a525fb0c1fd65510197642",
             "ios": "1:378454359271:ios:c12b3d92a0feda6c197642"
           }
         }

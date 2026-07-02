@@ -22,6 +22,14 @@ extension TaskStatusExt on TaskStatus {
 
 class TaskModel extends Equatable {
   final String id;
+
+  /// Estudiante dueño de la tarea (multi-tenant 2.0).
+  /// '' solo durante la transición — toda tarea nueva debe llevarlo.
+  final String studentId;
+
+  /// uid del padre/profesor que asignó la tarea.
+  final String? assignedBy;
+
   final String title;
   final String subject;
   final String? description;
@@ -52,6 +60,8 @@ class TaskModel extends Equatable {
 
   const TaskModel({
     required this.id,
+    this.studentId = '',
+    this.assignedBy,
     required this.title,
     required this.subject,
     this.description,
@@ -99,6 +109,8 @@ class TaskModel extends Equatable {
 
   TaskModel copyWith({
     String? id,
+    String? studentId,
+    String? assignedBy,
     String? title,
     String? subject,
     String? description,
@@ -121,6 +133,8 @@ class TaskModel extends Equatable {
     final newRef = referenceImagePaths ?? this.referenceImagePaths;
     return TaskModel(
       id: id ?? this.id,
+      studentId: studentId ?? this.studentId,
+      assignedBy: assignedBy ?? this.assignedBy,
       title: title ?? this.title,
       subject: subject ?? this.subject,
       description: description ?? this.description,
@@ -149,6 +163,8 @@ class TaskModel extends Equatable {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'student_id': studentId,
+      'assigned_by': assignedBy,
       'title': title,
       'subject': subject,
       'description': description,
@@ -176,6 +192,8 @@ class TaskModel extends Equatable {
   factory TaskModel.fromMap(Map<String, dynamic> map) {
     return TaskModel(
       id: map['id'] as String,
+      studentId: map['student_id'] as String? ?? '',
+      assignedBy: map['assigned_by'] as String?,
       title: map['title'] as String,
       subject: map['subject'] as String,
       description: map['description'] as String?,
@@ -241,6 +259,7 @@ class TaskModel extends Equatable {
 
   Map<String, dynamic> toFirestore() {
     return {
+      'assigned_by': assignedBy,
       'title': title,
       'subject': subject,
       'description': description,
@@ -263,7 +282,10 @@ class TaskModel extends Equatable {
     };
   }
 
-  factory TaskModel.fromFirestore(Map<String, dynamic> data, String id) {
+  /// [studentId] viene de la ruta students/{studentId}/tasks/{id},
+  /// no del documento (fuente de verdad: la ruta).
+  factory TaskModel.fromFirestore(Map<String, dynamic> data, String id,
+      {String studentId = ''}) {
     TaskStatus parseStatus(String name) {
       return TaskStatus.values.firstWhere(
         (s) => s.name == name,
@@ -304,6 +326,8 @@ class TaskModel extends Equatable {
 
     return TaskModel(
       id: id,
+      studentId: studentId,
+      assignedBy: data['assigned_by'] as String?,
       title: data['title'] as String? ?? 'Sin título',
       subject: data['subject'] as String? ?? 'Sin materia',
       description: data['description'] as String?,
@@ -327,7 +351,8 @@ class TaskModel extends Equatable {
   }
 
   @override
-  List<Object?> get props => [id, title, subject, dueDate, status, isArchived, isDeleted];
+  List<Object?> get props =>
+      [id, studentId, title, subject, dueDate, status, isArchived, isDeleted];
 }
 
 // ═══════════════════════════════════════════════════════════════

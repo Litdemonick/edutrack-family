@@ -33,13 +33,11 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner> {
     await Future.delayed(const Duration(seconds: 1));
     if (!mounted) return;
 
-    final ok = await SyncService.instance.fullSync();
+    await SyncService.instance.fullSync();
     if (!mounted) return;
 
-    if (ok) {
-      // Recargar datos locales con lo que llegó de Firestore
-      ref.read(taskProvider.notifier).loadTasks();
-      ref.read(eventProvider.notifier).loadEvents();
-    }
+    // Recargar datos locales con lo que llegó de Firestore
+    ref.read(taskProvider.notifier).loadTasks();
+    ref.read(eventProvider.notifier).loadEvents();
   }
 }

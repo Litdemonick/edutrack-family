@@ -43,6 +43,11 @@ extension EventTypeExt on EventType {
 
 class EventModel extends Equatable {
   final String id;
+
+  /// Estudiante dueño del evento (multi-tenant 2.0).
+  /// '' solo durante la transición — todo evento nuevo debe llevarlo.
+  final String studentId;
+
   final String title;
   final String? description;
   final EventType type;
@@ -56,6 +61,7 @@ class EventModel extends Equatable {
 
   const EventModel({
     required this.id,
+    this.studentId = '',
     required this.title,
     this.description,
     required this.type,
@@ -75,6 +81,7 @@ class EventModel extends Equatable {
 
   EventModel copyWith({
     String? id,
+    String? studentId,
     String? title,
     String? description,
     EventType? type,
@@ -87,6 +94,7 @@ class EventModel extends Equatable {
   }) {
     return EventModel(
       id: id ?? this.id,
+      studentId: studentId ?? this.studentId,
       title: title ?? this.title,
       description: description ?? this.description,
       type: type ?? this.type,
@@ -107,6 +115,7 @@ class EventModel extends Equatable {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'student_id': studentId,
       'title': title,
       'description': description,
       'type': type.index,
@@ -124,6 +133,7 @@ class EventModel extends Equatable {
     final typeIdx = map['type'] as int? ?? 0;
     return EventModel(
       id: map['id'] as String,
+      studentId: map['student_id'] as String? ?? '',
       title: map['title'] as String,
       description: map['description'] as String?,
       type: typeIdx >= 0 && typeIdx < EventType.values.length
@@ -161,7 +171,9 @@ class EventModel extends Equatable {
     };
   }
 
-  factory EventModel.fromFirestore(Map<String, dynamic> data, String id) {
+  /// [studentId] viene de la ruta students/{studentId}/events/{id}.
+  factory EventModel.fromFirestore(Map<String, dynamic> data, String id,
+      {String studentId = ''}) {
     EventType parseType(String name) {
       return EventType.values.firstWhere(
         (t) => t.name == name,
@@ -171,6 +183,7 @@ class EventModel extends Equatable {
 
     return EventModel(
       id: id,
+      studentId: studentId,
       title: data['title'] as String,
       description: data['description'] as String?,
       type: parseType(data['type'] as String),
@@ -188,5 +201,5 @@ class EventModel extends Equatable {
   }
 
   @override
-  List<Object?> get props => [id, title, type, date, isDeleted];
+  List<Object?> get props => [id, studentId, title, type, date, isDeleted];
 }

@@ -1,41 +1,169 @@
 rules_version = '2';
+
+// ═══════════════════════════════════════════════════════════════
+// EDUTRACK FAMILY 2.0 — Reglas de seguridad multi-tenant
+//
+// Roles (custom claim request.auth.token.role):
+//   parent  — padre/tutor: gestiona sus hijos vinculados
+//   teacher — profesor: tareas/eventos de sus estudiantes vinculados
+//   student — el niño: su uid ES el studentId (custom token)
+//
+// Principio: TODO lo de un estudiante vive bajo students/{studentId}.
+// El doc padre lleva parentIds[] y teacherIds[]; un get() a ese doc
+// autoriza el subárbol completo.
+// ═══════════════════════════════════════════════════════════════
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Solo usuarios autenticados pueden acceder
-    function isAuth() {
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    // ── Tareas ───────────────────────────────────────────────
-    match /tasks/{taskId} {
-      allow read, write: if isAuth();
+    function role() {
+      return isSignedIn() ? request.auth.token.get('role', '') : '';
     }
 
-    // ── Imágenes (base64 via Firestore) ──────────────────────
-    // Colección usada por ImageTransferService para transferir
-    // fotos de referencia (Admin→Student) y evidencias (Student→Admin)
-    match /task_images/{imageId} {
-      allow read, write: if isAuth();
-    }
-
-    // ── Eventos ──────────────────────────────────────────────
-    match /events/{eventId} {
-      allow read, write: if isAuth();
-    }
-
-    // ── Bloquear todo lo demás ────────────────────────────────
-    // Dispositivos registrados para FCM (token + rol admin/student)
-    match /devices/{deviceId} {
-      allow read, write: if isAuth();
-    }
-
-    // Cola de push que procesa Cloud Functions para entregar por rol
-    match /push_queue/{pushId} {
-      allow create, read, update: if isAuth();
+    // ── Perfil de usuario ─────────────────────────────────────
+    match /users/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      // El doc se crea sin rol privilegiado real: el claim lo pone
+      // la Cloud Function registerRole; aquí solo validamos forma.
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.role in ['parent', 'teacher']
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() <= 80;
+      allow update: if isSignedIn()
+        && request.auth.uid == uid
+        // El rol no se auto-modifica por el cliente
+        && request.resource.data.role == resource.data.role;
       allow delete: if false;
+
+      // Registro de dispositivos FCM del propio usuario
+      match /devices/{installId} {
+        allow read, write: if isSignedIn() && request.auth.uid == uid;
+      }
     }
 
+    // ── Estudiante y su subárbol ──────────────────────────────
+    match /students/{studentId} {
+
+      function studentData() {
+        return get(/databases/$(database)/documents/students/$(studentId)).data;
+      }
+
+      function isGuardian() {
+        return isSignedIn() && request.auth.uid in studentData().parentIds;
+      }
+
+      function isTeacherOf() {
+        return isSignedIn() && request.auth.uid in studentData().teacherIds;
+      }
+
+      function isTheChild() {
+        return isSignedIn() && request.auth.uid == studentId;
+      }
+
+      function canRead() {
+        return isGuardian() || isTeacherOf() || isTheChild();
+      }
+
+      // Perfil del estudiante
+      allow create: if isSignedIn()
+        && role() == 'parent'
+        && request.auth.uid in request.resource.data.parentIds
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 80;
+      allow read: if canRead();
+      // Solo guardianes editan el perfil (profesores se vinculan por
+      // Cloud Function con Admin SDK, que ignora estas reglas)
+      allow update: if isGuardian()
+        // Un guardián no puede dejar al estudiante sin padres por error
+        && request.resource.data.parentIds.size() > 0;
+      allow delete: if isGuardian();
+
+      // ── Tareas ──────────────────────────────────────────────
+      match /tasks/{taskId} {
+        allow read: if canRead();
+        allow create, delete: if isGuardian() || isTeacherOf();
+        allow update: if isGuardian() || isTeacherOf()
+          // El estudiante solo toca los campos de su flujo de entrega
+          || (isTheChild()
+              && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'completionNote', 'updatedAt',
+                           'conversationHistory', 'hasEvidenceImages']));
+      }
+
+      // ── Eventos ─────────────────────────────────────────────
+      match /events/{eventId} {
+        allow read: if canRead();
+        allow write: if isGuardian() || isTeacherOf();
+      }
+
+      // ── Horario semanal (data-driven) ───────────────────────
+      match /scheduleBlocks/{blockId} {
+        allow read: if canRead();
+        allow write: if isGuardian() || isTeacherOf();
+      }
+
+      // ── Evidencias (metadata; los bytes van a Storage) ──────
+      match /evidences/{evidenceId} {
+        allow read: if canRead();
+        allow create: if isTheChild() || isGuardian();
+        allow update: if isGuardian() || isTeacherOf() || isTheChild();
+        allow delete: if isGuardian();
+      }
+
+      // ── Ubicación: SOLO padres leen, SOLO el hijo escribe ───
+      match /locations/{document=**} {
+        allow read: if isGuardian();
+        allow write: if isTheChild();
+      }
+
+      // ── Zonas (geocercas): padres gestionan, hijo las lee ───
+      match /zones/{zoneId} {
+        allow read: if isGuardian() || isTheChild();
+        allow write: if isGuardian();
+      }
+
+      match /zoneEvents/{eventId} {
+        allow read: if isGuardian();
+        allow create: if isTheChild();
+        allow update, delete: if false;
+      }
+
+      // ── Check-in "¿Estás bien?" ─────────────────────────────
+      match /wellnessChecks/{checkId} {
+        allow read: if isGuardian() || isTheChild();
+        allow create: if isGuardian();
+        // El hijo solo responde (status/respondedAt); el cierre por
+        // timeout lo hace la Cloud Function (Admin SDK)
+        allow update: if isTheChild()
+          && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['status', 'respondedAt']);
+        allow delete: if false;
+      }
+    }
+
+    // ── Códigos de vinculación: SOLO Cloud Functions ──────────
+    match /linkCodes/{code} {
+      allow read, write: if false;
+    }
+
+    // ── Cola de push: clientes solo crean ─────────────────────
+    match /push_queue/{pushId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if false;
+    }
+
+    // ── Eventos sísmicos: solo lectura (escribe la CF) ────────
+    match /seismicEvents/{eventId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ── Todo lo demás: denegado ───────────────────────────────
     match /{document=**} {
       allow read, write: if false;
     }

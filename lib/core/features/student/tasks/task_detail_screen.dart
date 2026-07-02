@@ -9,7 +9,7 @@ import 'package:edutrack_family/core/constants/app_routes.dart';
 import 'package:edutrack_family/core/constants/app_strings.dart';
 import 'package:edutrack_family/core/constants/utils/date_utils.dart';
 import 'package:edutrack_family/core/data/local/models/task_model.dart';
-import 'package:edutrack_family/core/data/local/database_helper.dart';
+import 'package:edutrack_family/core/database/database_helper.dart';
 import 'package:edutrack_family/core/services/image_transfer_service.dart';
 import 'package:edutrack_family/core/features/student/dashboard/widgets/traffic_light_badge.dart';
 import 'package:edutrack_family/core/shared/widgets/cached_local_image.dart';
