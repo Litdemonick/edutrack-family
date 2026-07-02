@@ -23,7 +23,14 @@ import 'core/services/sync_service.dart';
 import 'core/services/app_lifecycle_service.dart';
 import 'core/services/notification_bus.dart';
 
-import 'core/features/auth/login_screen.dart';
+import 'core/providers/family_provider.dart';
+import 'features/auth/presentation/login_screen.dart';
+import 'features/auth/presentation/register_screen.dart';
+import 'features/auth/presentation/verify_email_screen.dart';
+import 'features/auth/presentation/complete_profile_screen.dart';
+import 'features/auth/presentation/forgot_password_screen.dart';
+import 'features/auth/presentation/student_code_screen.dart';
+import 'features/auth/presentation/biometric_gate_screen.dart';
 import 'core/features/permissions/permission_gate_screen.dart';
 import 'core/features/student/student_home.dart';
 import 'core/features/student/tasks/task_detail_screen.dart';
@@ -44,20 +51,57 @@ import 'core/features/notifications/notifications_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final user = ref.watch(authProvider);
+  final biometricUnlocked = ref.watch(biometricUnlockedProvider);
 
   return GoRouter(
     initialLocation: AppRoutes.splash,
     debugLogDiagnostics: false,
 
     redirect: (context, state) {
-      final isLoggedIn = user != null;
       final loc = state.matchedLocation;
-      final isOnLogin = loc == AppRoutes.login;
-      final isOnSplash = loc == AppRoutes.splash;
+      final notifier = ref.read(authProvider.notifier);
 
-      if (!isLoggedIn && !isOnLogin && !isOnSplash) return AppRoutes.login;
-      if (isLoggedIn && (isOnLogin || isOnSplash)) {
-        return user.isAdmin ? AppRoutes.admin : AppRoutes.student;
+      // Rutas públicas (sin sesión)
+      const publicRoutes = {
+        AppRoutes.login,
+        AppRoutes.register,
+        AppRoutes.forgotPassword,
+        AppRoutes.studentCode,
+        AppRoutes.splash,
+        AppRoutes.permissions,
+      };
+
+      // 1. Perfil incompleto (Google primer login): gate de rol+edad
+      if (user == null && notifier.needsProfileCompletion) {
+        return loc == AppRoutes.completeProfile
+            ? null
+            : AppRoutes.completeProfile;
+      }
+
+      // 2. Sin sesión → solo rutas públicas
+      if (user == null) {
+        return publicRoutes.contains(loc) ? null : AppRoutes.login;
+      }
+
+      // 3. Adulto con email sin verificar (solo cuentas email/password)
+      if (user.isAdult && !user.emailVerified && user.hasPasswordProvider) {
+        return loc == AppRoutes.verifyEmail ? null : AppRoutes.verifyEmail;
+      }
+
+      // 4. Gate biométrico (si está activado y aún no desbloqueó)
+      if (notifier.biometricEnabled && !biometricUnlocked) {
+        return loc == AppRoutes.biometricGate
+            ? null
+            : AppRoutes.biometricGate;
+      }
+
+      // 5. Con sesión: fuera de las pantallas de auth
+      final home = user.isStudent ? AppRoutes.student : AppRoutes.admin;
+      if (publicRoutes.contains(loc) ||
+          loc == AppRoutes.verifyEmail ||
+          loc == AppRoutes.completeProfile ||
+          loc == AppRoutes.biometricGate) {
+        return home;
       }
       return null;
     },
@@ -70,6 +114,30 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.login,
         builder: (_, _) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.register,
+        builder: (_, _) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.verifyEmail,
+        builder: (_, _) => const VerifyEmailScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.completeProfile,
+        builder: (_, _) => const CompleteProfileScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.forgotPassword,
+        builder: (_, _) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.studentCode,
+        builder: (_, _) => const StudentCodeScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.biometricGate,
+        builder: (_, _) => const BiometricGateScreen(),
       ),
       GoRoute(
         path: AppRoutes.student,
@@ -204,6 +272,14 @@ class _EduTrackAppState extends ConsumerState<EduTrackApp>
     final user = ref.read(authProvider);
     if (user == null) return;
 
+    // Refrescar la lista de estudiantes vinculados (scope del sync)
+    final family = ref.read(linkedStudentsProvider.notifier);
+    if (user.isStudent) {
+      await family.refreshForStudent(user.uid);
+    } else {
+      await family.refreshForAdult(user.uid);
+    }
+
     // SharedPreferences ya fue inicializado en main() antes de runApp
     final prefs = await SharedPreferences.getInstance();
     final isFirstSyncDone = prefs.getBool('is_first_sync_completed') ?? false;
@@ -304,12 +380,15 @@ class _EduTrackAppState extends ConsumerState<EduTrackApp>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       AppLifecycleService.instance.setBackground();
-      // Inicia timer de auto-logout (3 min en background)
+      // Tras 3 min en background se re-bloquea el gate biométrico
+      // (v2: reemplaza al auto-logout de la v1 — la sesión Firebase
+      // persiste; solo se exige huella al volver)
       // NO se detiene el sync — el stream sigue activo para no perder cambios
       _bgTimer?.cancel();
       _bgTimer = Timer(_bgTimeout, () {
-        if (ref.read(authProvider) != null) {
-          ref.read(authProvider.notifier).logout();
+        if (ref.read(authProvider) != null &&
+            ref.read(authProvider.notifier).biometricEnabled) {
+          ref.read(biometricUnlockedProvider.notifier).state = false;
         }
       });
     } else if (state == AppLifecycleState.resumed) {

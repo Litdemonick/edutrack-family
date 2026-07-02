@@ -83,6 +83,14 @@ class SessionUser extends Equatable {
   bool get hasGoogleLinked => providers.contains('google.com');
   bool get hasPasswordProvider => providers.contains('password');
 
+  // ── Compatibilidad transicional con la UI v1 ────────────────
+  // (las shells v1 usaban AppUser.id/isAdmin/avatarEmoji/username;
+  //  se eliminan cuando las pantallas nuevas de F4 las reemplacen)
+  String get id => uid;
+  bool get isAdmin => isAdult;
+  String get avatarEmoji => role.emoji;
+  String get username => email ?? displayName;
+
   SessionUser copyWith({
     UserRole? role,
     String? displayName,

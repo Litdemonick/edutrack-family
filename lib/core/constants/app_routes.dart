@@ -17,6 +17,31 @@ class AppRoutes {
   static const String login = '/login';
 
   // ─────────────────────────────────────────────────────────────
+  // AUTENTICACIÓN 2.0
+  // ─────────────────────────────────────────────────────────────
+
+  /// Registro de adulto (padre/tutor o profesor)
+  static const String register = '/register';
+
+  /// Verificación de email (bloqueante hasta confirmar)
+  static const String verifyEmail = '/verify-email';
+
+  /// Completar perfil (primer login con Google: rol + edad)
+  static const String completeProfile = '/complete-profile';
+
+  /// Recuperar contraseña
+  static const String forgotPassword = '/forgot-password';
+
+  /// Entrada de estudiante con código de vinculación
+  static const String studentCode = '/student-code';
+
+  /// Gate biométrico (huella/Face ID) con sesión viva
+  static const String biometricGate = '/biometric-gate';
+
+  /// Gestión de familia: hijos, códigos, vínculos
+  static const String family = '/family';
+
+  // ─────────────────────────────────────────────────────────────
   // RUTAS DEL ESTUDIANTE (Yordan)
   // ─────────────────────────────────────────────────────────────
 

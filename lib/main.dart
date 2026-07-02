@@ -65,11 +65,8 @@ Future<void> main() async {
     return true; // Marcado como manejado, la app no crashea
   };
 
-  // ── Orientación: solo portrait (vertical) ──────────────────
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+  // ── Orientación: libre (v2 responsiva: teléfono, tablet, desktop)
+  // Los layouts se adaptan por breakpoints (core/responsive/).
 
   // ── Color de la barra de estado del sistema ────────────────
   SystemChrome.setSystemUIOverlayStyle(
