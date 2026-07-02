@@ -1,0 +1,26 @@
+// ═══════════════════════════════════════════════════════════════
+// FIREBASE STORAGE RULES — EduTrack Family
+// Pegar en: Firebase Console → Storage → Rules
+// ═══════════════════════════════════════════════════════════════
+//
+// Permite lectura pública y escritura a usuarios autenticados
+// (incluyendo autenticación anónima que usa la app).
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Imágenes de tareas (evidencias y referencias)
+    match /tasks/{taskId}/{folder}/{filename} {
+      // Cualquiera puede leer (para ver imágenes en otros dispositivos)
+      allow read: if true;
+      // Solo usuarios autenticados (anónimos también) pueden escribir
+      allow write: if request.auth != null;
+    }
+
+    // Regla de seguridad por defecto: denegar todo lo demás
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,32 @@
+# ═══════════════════════════════════════════════════════════════
+# CODEOWNERS — EduTrack Family 2.0
+# Reemplaza los @usuario-github por los usuarios reales del equipo.
+# GitHub pedirá review del dueño cuando un PR toque su zona.
+# ═══════════════════════════════════════════════════════════════
+
+# Zona A — Núcleo, Auth y Familia (líder)
+/lib/app/                 @LIDER
+/lib/core/                @LIDER
+/lib/features/auth/       @LIDER
+/lib/features/family/     @LIDER
+/lib/features/shells/     @LIDER
+/firestore.rules          @LIDER
+/functions/               @LIDER
+/.github/                 @LIDER
+
+# Zona B — Tareas y Evidencias
+/lib/features/tasks/      @DEV2
+/lib/features/evidence/   @DEV2
+
+# Zona C — Eventos, Horario, Calendario y Stats
+/lib/features/events/     @DEV3
+/lib/features/schedule/   @DEV3
+/lib/features/stats/      @DEV3
+
+# Zona D — Ubicación y Seguridad
+/lib/features/location/   @DEV4
+/lib/features/safety/     @DEV4
+
+# Zona E — Notificaciones y Ajustes
+/lib/features/notifications/  @DEV5
+/lib/features/settings/       @DEV5
