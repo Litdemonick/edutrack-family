@@ -68,5 +68,21 @@
 		</array>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<key>NSCameraUsageDescription</key>
+		<string>EduTrack necesita la cámara para tomar fotos de evidencia de las tareas.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>EduTrack necesita acceso a tus fotos para adjuntar evidencias e imágenes de referencia.</string>
+		<key>NSFaceIDUsageDescription</key>
+		<string>EduTrack usa Face ID para desbloquear la app de forma segura.</string>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>EduTrack usa tu ubicación para que tu padre/madre pueda verificar que estás bien, solo con tu consentimiento.</string>
+		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+		<string>EduTrack comparte tu ubicación con tu padre/madre aunque la app esté cerrada, solo si tú y tu familia lo activan. Siempre verás un indicador cuando esté activo.</string>
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>remote-notification</string>
+			<string>location</string>
+			<string>fetch</string>
+		</array>
 	</dict>
 </plist>

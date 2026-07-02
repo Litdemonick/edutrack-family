@@ -1,4 +1,4 @@
-package com.example.edutrack
+package com.edutrack.family
 
 import android.app.Activity
 import android.content.Context
@@ -10,11 +10,12 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import io.flutter.embedding.android.FlutterActivity
+// FlutterFragmentActivity (no FlutterActivity): requerido por local_auth (biometría)
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
 
     companion object {
         private const val CH_RINGTONE = "com.edutrack/ringtone"

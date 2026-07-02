@@ -24,7 +24,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyACWMpSZGUzpT5a6bsqVRYcorXm5k3KMOs',
-    appId: '1:378454359271:android:79fbd0fedc83eb6b197642',
+    appId: '1:378454359271:android:a525fb0c1fd65510197642',
     messagingSenderId: '378454359271',
     projectId: 'edutrack-family',
     storageBucket: 'edutrack-family.firebasestorage.app',

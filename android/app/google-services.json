@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:378454359271:android:a525fb0c1fd65510197642",
+        "android_client_info": {
+          "package_name": "com.edutrack.family"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyACWMpSZGUzpT5a6bsqVRYcorXm5k3KMOs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:378454359271:android:79fbd0fedc83eb6b197642",
         "android_client_info": {
           "package_name": "com.example.edutrack"
