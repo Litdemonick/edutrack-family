@@ -171,11 +171,10 @@ class TaskModel extends Equatable {
       'category': category,
       'due_date': EduDateUtils.toIso(dueDate),
       'status': status.index,
-      'photo_evidence_path': evidencePhotoPaths.isNotEmpty ? evidencePhotoPaths.first : null,
       'evidence_photo_paths': evidencePhotoPaths.isEmpty ? null : jsonEncode(evidencePhotoPaths),
       'has_evidence_images': _hasEvidenceFlag ? 1 : 0,
       'completion_note': completionNote,
-      'reference_image_path': referenceImagePaths.isEmpty ? null : jsonEncode(referenceImagePaths),
+      'reference_image_paths': referenceImagePaths.isEmpty ? null : jsonEncode(referenceImagePaths),
       'has_reference_images': _hasReferenceFlag ? 1 : 0,
       'completed_at': completedAt != null ? EduDateUtils.toIso(completedAt!) : null,
       'created_at': EduDateUtils.toIso(createdAt),
@@ -203,7 +202,7 @@ class TaskModel extends Equatable {
       evidencePhotoPaths: _parsePhotoPaths(map),
       hasEvidenceImages: (map['has_evidence_images'] as int? ?? 0) == 1,
       completionNote: map['completion_note'] as String?,
-      referenceImagePaths: _parseReferencePaths(map['reference_image_path']),
+      referenceImagePaths: _parseReferencePaths(map['reference_image_paths']),
       hasReferenceImages: (map['has_reference_images'] as int? ?? 0) == 1,
       completedAt:
           map['completed_at'] != null ? DateTime.parse(map['completed_at'] as String) : null,
@@ -224,8 +223,6 @@ class TaskModel extends Equatable {
         return list.cast<String>();
       } catch (_) {}
     }
-    final single = map['photo_evidence_path'] as String?;
-    if (single != null && single.isNotEmpty) return [single];
     return [];
   }
 
@@ -301,17 +298,12 @@ class TaskModel extends Equatable {
 
     List<String> parsePhotos() {
       final list = data['evidence_photo_paths'];
-      if (list is List) return list.cast<String>();
-      final single = data['photo_evidence_path'] as String?;
-      if (single != null && single.isNotEmpty) return [single];
-      return [];
+      return list is List ? list.cast<String>() : [];
     }
 
     List<String> parseRefPaths() {
       final list = data['reference_image_paths'];
-      if (list is List) return list.cast<String>();
-      final raw = data['reference_image_path'];
-      return _parseReferencePaths(raw);
+      return list is List ? list.cast<String>() : [];
     }
 
     List<ConversationEntry> parseConversation() {

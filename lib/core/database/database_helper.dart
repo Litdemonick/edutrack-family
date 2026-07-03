@@ -79,6 +79,8 @@ class DatabaseHelper {
         teacher_ids TEXT NOT NULL DEFAULT '[]',
         location_sharing_enabled INTEGER NOT NULL DEFAULT 0,
         location_device_confirmed INTEGER NOT NULL DEFAULT 0,
+        seismic_alerts_enabled INTEGER NOT NULL DEFAULT 1,
+        seismic_min_magnitude REAL NOT NULL DEFAULT 4.5,
         updated_at TEXT NOT NULL,
         is_dirty INTEGER NOT NULL DEFAULT 0
       )

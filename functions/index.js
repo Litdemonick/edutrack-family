@@ -421,6 +421,16 @@ exports.checkSeismicActivity = onSchedule('every 1 minutes', async () => {
 
       const student = await db.doc(`students/${loc.studentId}`).get();
       if (!student.exists) continue;
+
+      // Respeta la configuración de la familia (activado/desactivado
+      // y magnitud mínima) — activado por defecto si nunca se tocó.
+      const seismicCfg = student.get('seismicAlerts') || {};
+      const enabled = seismicCfg.enabled !== false;
+      const minMag = typeof seismicCfg.minMagnitude === 'number'
+        ? seismicCfg.minMagnitude
+        : 4.5;
+      if (!enabled || mag < minMag) continue;
+
       const parentIds = student.get('parentIds') || [];
       const targets = [loc.studentId, ...parentIds];
 

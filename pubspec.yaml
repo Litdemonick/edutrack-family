@@ -118,6 +118,7 @@ dev_dependencies:
 
   flutter_lints: ^6.0.0           # Reglas de análisis estático recomendadas
   riverpod_generator: ^2.6.2      # Generador de código para @riverpod annotations
+  sqflite_common_ffi: ^2.3.6      # SQLite en tests (Windows/CI, sin dispositivo)
   build_runner: ^2.4.15           # Runner de generación de código (riverpod_generator)
   flutter_launcher_icons: ^0.14.3 # Generar ícono de la app para Android e iOS
   flutter_native_splash: ^2.4.3   # Pantalla de splash nativa automática

@@ -19,6 +19,12 @@ class StudentProfile extends Equatable {
   final List<String> teacherIds;
   final bool locationSharingEnabled;
   final bool locationDeviceConfirmed;
+
+  /// Alerta sísmica (complementa, no sustituye, las alertas nativas).
+  /// Activada por defecto — la familia la apaga si no la quiere.
+  final bool seismicAlertsEnabled;
+  final double seismicMinMagnitude;
+
   final DateTime updatedAt;
 
   const StudentProfile({
@@ -31,6 +37,8 @@ class StudentProfile extends Equatable {
     this.teacherIds = const [],
     this.locationSharingEnabled = false,
     this.locationDeviceConfirmed = false,
+    this.seismicAlertsEnabled = true,
+    this.seismicMinMagnitude = 4.5,
     required this.updatedAt,
   });
 
@@ -51,6 +59,8 @@ class StudentProfile extends Equatable {
     List<String>? teacherIds,
     bool? locationSharingEnabled,
     bool? locationDeviceConfirmed,
+    bool? seismicAlertsEnabled,
+    double? seismicMinMagnitude,
     DateTime? updatedAt,
   }) {
     return StudentProfile(
@@ -65,6 +75,8 @@ class StudentProfile extends Equatable {
           locationSharingEnabled ?? this.locationSharingEnabled,
       locationDeviceConfirmed:
           locationDeviceConfirmed ?? this.locationDeviceConfirmed,
+      seismicAlertsEnabled: seismicAlertsEnabled ?? this.seismicAlertsEnabled,
+      seismicMinMagnitude: seismicMinMagnitude ?? this.seismicMinMagnitude,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -81,6 +93,8 @@ class StudentProfile extends Equatable {
         'teacher_ids': jsonEncode(teacherIds),
         'location_sharing_enabled': locationSharingEnabled ? 1 : 0,
         'location_device_confirmed': locationDeviceConfirmed ? 1 : 0,
+        'seismic_alerts_enabled': seismicAlertsEnabled ? 1 : 0,
+        'seismic_min_magnitude': seismicMinMagnitude,
         'updated_at': updatedAt.toIso8601String(),
       };
 
@@ -95,6 +109,9 @@ class StudentProfile extends Equatable {
       teacherIds: _parseStringList(map['teacher_ids']),
       locationSharingEnabled: (map['location_sharing_enabled'] ?? 0) == 1,
       locationDeviceConfirmed: (map['location_device_confirmed'] ?? 0) == 1,
+      seismicAlertsEnabled: (map['seismic_alerts_enabled'] ?? 1) == 1,
+      seismicMinMagnitude:
+          (map['seismic_min_magnitude'] as num?)?.toDouble() ?? 4.5,
       updatedAt: DateTime.parse(map['updated_at'] as String),
     );
   }
@@ -111,12 +128,18 @@ class StudentProfile extends Equatable {
           'enabledByParent': locationSharingEnabled,
           'deviceConfirmed': locationDeviceConfirmed,
         },
+        'seismicAlerts': {
+          'enabled': seismicAlertsEnabled,
+          'minMagnitude': seismicMinMagnitude,
+        },
         'updatedAt': updatedAt.toIso8601String(),
       };
 
   factory StudentProfile.fromFirestore(Map<String, dynamic> data, String id) {
     final locationSharing =
         (data['locationSharing'] as Map<String, dynamic>?) ?? const {};
+    final seismicAlerts =
+        (data['seismicAlerts'] as Map<String, dynamic>?) ?? const {};
     return StudentProfile(
       id: id,
       name: (data['name'] ?? '') as String,
@@ -128,6 +151,9 @@ class StudentProfile extends Equatable {
           (locationSharing['enabledByParent'] ?? false) as bool,
       locationDeviceConfirmed:
           (locationSharing['deviceConfirmed'] ?? false) as bool,
+      seismicAlertsEnabled: (seismicAlerts['enabled'] ?? true) as bool,
+      seismicMinMagnitude:
+          (seismicAlerts['minMagnitude'] as num?)?.toDouble() ?? 4.5,
       updatedAt: DateTime.tryParse((data['updatedAt'] ?? '') as String) ??
           DateTime.now(),
     );
@@ -156,6 +182,8 @@ class StudentProfile extends Equatable {
         teacherIds,
         locationSharingEnabled,
         locationDeviceConfirmed,
+        seismicAlertsEnabled,
+        seismicMinMagnitude,
         updatedAt,
       ];
 }

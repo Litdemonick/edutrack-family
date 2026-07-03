@@ -5,7 +5,9 @@ import 'package:latlong2/latlong.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:edutrack_family/core/constants/app_colors.dart';
+import 'package:edutrack_family/core/data/local/models/student_model.dart';
 import 'package:edutrack_family/core/providers/family_provider.dart';
+import 'package:edutrack_family/features/family/data/family_repository.dart';
 import 'package:edutrack_family/features/family/presentation/widgets/student_selector.dart';
 import 'package:edutrack_family/features/location/data/location_models.dart';
 import 'package:edutrack_family/features/location/data/location_repository.dart';
@@ -77,6 +79,14 @@ class _ChildMapScreenState extends ConsumerState<ChildMapScreen> {
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          FloatingActionButton.small(
+            heroTag: 'seismic',
+            backgroundColor: Colors.deepOrange,
+            tooltip: 'Alerta sísmica',
+            onPressed: () => _showSeismicSettings(student),
+            child: const Icon(Icons.public, color: Colors.white),
+          ),
+          const SizedBox(height: 10),
           FloatingActionButton.small(
             heroTag: 'wellness',
             backgroundColor: Colors.orange,
@@ -258,6 +268,87 @@ class _ChildMapScreenState extends ConsumerState<ChildMapScreen> {
         );
       },
     );
+  }
+
+  Future<void> _showSeismicSettings(StudentProfile student) async {
+    var enabled = student.seismicAlertsEnabled;
+    var minMag = student.seismicMinMagnitude;
+
+    final result = await showModalBottomSheet<(bool, double)>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 20,
+            bottom: MediaQuery.viewInsetsOf(ctx).bottom + 28,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('🌍', style: TextStyle(fontSize: 40)),
+              const SizedBox(height: 8),
+              const Text(
+                'Alerta sísmica',
+                style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'EduTrack revisa cada minuto el reporte público de '
+                'terremotos (USGS) y avisa a tu familia si hay uno '
+                'cerca. Esto complementa — no reemplaza — las alertas '
+                'oficiales de tu teléfono.',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 16),
+              SwitchListTile(
+                value: enabled,
+                onChanged: (v) => setSheetState(() => enabled = v),
+                title: const Text('Activar alerta sísmica'),
+                contentPadding: EdgeInsets.zero,
+              ),
+              if (enabled) ...[
+                Text('Magnitud mínima: ${minMag.toStringAsFixed(1)}'),
+                Slider(
+                  value: minMag,
+                  min: 3.5,
+                  max: 6.5,
+                  divisions: 6,
+                  label: minMag.toStringAsFixed(1),
+                  onChanged: (v) => setSheetState(() => minMag = v),
+                ),
+              ],
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, (enabled, minMag)),
+                style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(50)),
+                child: const Text('Guardar'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (result == null) return;
+
+    final updated = student.copyWith(
+      seismicAlertsEnabled: result.$1,
+      seismicMinMagnitude: result.$2,
+    );
+    await FamilyRepository.instance.updateChild(updated);
+    if (mounted) {
+      await ref.read(linkedStudentsProvider.notifier).upsertLocal(updated);
+    }
   }
 
   Future<void> _loadHistory(String studentId) async {
