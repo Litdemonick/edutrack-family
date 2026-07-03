@@ -21,6 +21,7 @@ import 'core/data/local/models/event_model.dart';
 import 'core/data/local/models/notification_model.dart';
 import 'core/services/sync_service.dart';
 import 'core/services/app_lifecycle_service.dart';
+import 'core/services/fcm_service.dart';
 import 'core/services/notification_bus.dart';
 
 import 'core/providers/family_provider.dart';
@@ -277,6 +278,9 @@ class _EduTrackAppState extends ConsumerState<EduTrackApp>
     final user = ref.read(authProvider);
     if (user == null) return;
 
+    // Registrar este dispositivo para push FCM (por uid)
+    FcmService.instance.registerDevice(user.uid);
+
     // Refrescar la lista de estudiantes vinculados (scope del sync)
     final family = ref.read(linkedStudentsProvider.notifier);
     if (user.isStudent) {
@@ -412,6 +416,7 @@ class _EduTrackAppState extends ConsumerState<EduTrackApp>
         _startSyncIfLoggedIn();
       } else {
         SyncService.instance.stopRealtimeSync();
+        FcmService.instance.unregisterDevice();
       }
     });
 

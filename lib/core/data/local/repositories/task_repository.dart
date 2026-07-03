@@ -19,26 +19,37 @@ class TaskRepository {
   // ─────────────────────────────────────────────────────────────
 
   Future<void> createTask(TaskModel task) async {
-    await _db.insert(_table, task.toMap());
+    final map = task.toMap();
+    map['is_dirty'] = 1; // pendiente de subir (SyncService lo limpia)
+    await _db.insert(_table, map);
   }
 
   // ─────────────────────────────────────────────────────────────
   // LEER
   // ─────────────────────────────────────────────────────────────
 
-  Future<List<TaskModel>> getAllActiveTasks() async {
+  Future<List<TaskModel>> getAllActiveTasks({String? studentId}) async {
     final rows = await _db.queryAll(
       _table,
-      where: 'is_archived = 0 AND is_deleted = 0',
+      where: _scoped('is_archived = 0 AND is_deleted = 0', studentId),
+      whereArgs: _scopedArgs(const [], studentId),
       orderBy: 'due_date ASC',
     );
     return rows.map(TaskModel.fromMap).toList();
   }
 
-  Future<List<TaskModel>> getAllTasksForStats() async {
+  /// Añade el filtro de estudiante cuando aplica.
+  static String _scoped(String where, String? studentId) =>
+      studentId == null ? where : '$where AND student_id = ?';
+
+  static List<Object?>? _scopedArgs(List<Object?> args, String? studentId) =>
+      studentId == null ? (args.isEmpty ? null : args) : [...args, studentId];
+
+  Future<List<TaskModel>> getAllTasksForStats({String? studentId}) async {
     final rows = await _db.queryAll(
       _table,
-      where: 'is_archived = 0',
+      where: _scoped('is_archived = 0', studentId),
+      whereArgs: _scopedArgs(const [], studentId),
       orderBy: 'due_date ASC',
     );
     return rows.map(TaskModel.fromMap).toList();
@@ -64,10 +75,11 @@ class TaskRepository {
     return rows.map(TaskModel.fromMap).toList();
   }
 
-  Future<List<TaskModel>> getArchivedTasks() async {
+  Future<List<TaskModel>> getArchivedTasks({String? studentId}) async {
     final rows = await _db.queryAll(
       _table,
-      where: 'is_archived = 1 AND is_deleted = 0',
+      where: _scoped('is_archived = 1 AND is_deleted = 0', studentId),
+      whereArgs: _scopedArgs(const [], studentId),
       orderBy: 'updated_at DESC',
     );
     return rows.map(TaskModel.fromMap).toList();
@@ -107,7 +119,9 @@ class TaskRepository {
   // ─────────────────────────────────────────────────────────────
 
   Future<void> updateTask(TaskModel task) async {
-    await _db.update(_table, task.toMap(), task.id);
+    final map = task.toMap();
+    map['is_dirty'] = 1; // pendiente de subir (SyncService lo limpia)
+    await _db.update(_table, map, task.id);
   }
 
   Future<void> markCompleted(
@@ -240,8 +254,8 @@ class TaskRepository {
   // ESTADÍSTICAS
   // ─────────────────────────────────────────────────────────────
 
-  Future<Map<String, int>> getStats() async {
-    final historical = await getAllTasksForStats();
+  Future<Map<String, int>> getStats({String? studentId}) async {
+    final historical = await getAllTasksForStats(studentId: studentId);
     final current = historical.where((t) => !t.isDeleted).toList();
     final counted = historical
         .where((t) => !t.isDeleted || t.isCompleted || t.completedAt != null)

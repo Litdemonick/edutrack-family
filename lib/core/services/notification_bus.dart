@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/local/models/notification_model.dart';
+import '../data/local/repositories/student_repository.dart';
 import '../providers/notification_provider.dart';
 import '../constants/utils/notification_utils.dart';
 import '../services/app_lifecycle_service.dart';
@@ -29,6 +30,15 @@ enum NotificationChannel {
 class NotificationBus {
   NotificationBus._();
 
+  /// uids de los adultos vinculados al estudiante (padres + profesores).
+  /// Para notificar al propio estudiante usa `[studentId]` (uid == id).
+  static Future<List<String>> guardianTargets(String studentId) async {
+    if (studentId.isEmpty) return const [];
+    final student = await StudentRepository.instance.getById(studentId);
+    if (student == null) return const [];
+    return [...student.parentIds, ...student.teacherIds];
+  }
+
   /// Dispara ambas capas simultáneamente:
   /// - Notificación interna (historial campana 🔔)
   /// - Push del sistema (local si app abierta, FCM si cerrada)
@@ -42,7 +52,7 @@ class NotificationBus {
   /// [taskId]        ID de tarea (para navegar al tocar)
   /// [eventId]       ID de evento (para navegar al tocar)
   /// [payload]       Payload para push del sistema ('task:id' | 'event:id')
-  /// [targetRole]    FCM al rol opuesto ('admin' | 'student' | null = ninguno)
+  /// [targetUids]    FCM a usuarios concretos (uids; null = sin push remoto)
   /// Para usar en widgets (ConsumerWidget / ConsumerStatefulWidget)
   static Future<void> dispatch({
     required WidgetRef ref,
@@ -54,7 +64,7 @@ class NotificationBus {
     String? taskId,
     String? eventId,
     String? payload,
-    String? targetRole,
+    List<String>? targetUids,
   }) async {
     await _dispatch(
       read: ref.read,
@@ -66,7 +76,7 @@ class NotificationBus {
       taskId: taskId,
       eventId: eventId,
       payload: payload,
-      targetRole: targetRole,
+      targetUids: targetUids,
     );
   }
 
@@ -81,7 +91,7 @@ class NotificationBus {
     String? taskId,
     String? eventId,
     String? payload,
-    String? targetRole,
+    List<String>? targetUids,
   }) async {
     await _dispatch(
       read: ref.read,
@@ -93,7 +103,7 @@ class NotificationBus {
       taskId: taskId,
       eventId: eventId,
       payload: payload,
-      targetRole: targetRole,
+      targetUids: targetUids,
     );
   }
 
@@ -108,7 +118,7 @@ class NotificationBus {
     String? taskId,
     String? eventId,
     String? payload,
-    String? targetRole,
+    List<String>? targetUids,
   }) async {
     // ── 1️⃣ Notificación interna (campana dentro de la app) ────
     read(notificationProvider.notifier).dispatchFull(
@@ -153,13 +163,13 @@ class NotificationBus {
       }
     }
 
-    // ── 3️⃣ FCM al dispositivo del otro rol ────────────────────
-    if (targetRole != null) {
-      await PushQueueService.instance.sendToRole(
-        targetRole,
+    // ── 3️⃣ FCM a los dispositivos de los usuarios destino ─────
+    if (targetUids != null && targetUids.isNotEmpty) {
+      await PushQueueService.instance.sendToUids(
+        targetUids,
         title: title,
         body: body,
-        payload: payload,
+        data: payload != null ? {'payload': payload} : null,
       );
     }
   }

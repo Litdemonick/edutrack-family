@@ -167,7 +167,7 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
       channel: NotificationChannel.system,
       taskId: widget.task.id,
       payload: 'task:${widget.task.id}',
-      targetRole: 'student',
+      targetUids: [widget.task.studentId],
     );
 
     if (mounted) setState(() => _busy = false);

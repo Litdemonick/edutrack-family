@@ -5,7 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:edutrack_family/core/constants/app_colors.dart';
 import 'package:edutrack_family/core/constants/app_strings.dart';
 import 'package:edutrack_family/core/constants/utils/date_utils.dart';
-import 'package:edutrack_family/core/data/local/models/schedule_model.dart';
+import 'package:edutrack_family/core/data/local/models/schedule_block_model.dart';
+import 'package:edutrack_family/core/providers/schedule_provider.dart';
 import 'package:edutrack_family/core/providers/task_provider.dart';
 import 'package:edutrack_family/core/services/camera_service.dart';
 import 'package:edutrack_family/core/shared/widgets/cached_local_image.dart';
@@ -65,8 +66,9 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
     );
     if (picked == null || !mounted) return;
 
-    // Buscar si Yordan tiene clase de esta materia ese día
-    final entries = YordanSchedule.forDay(picked.weekday);
+    // Buscar si el estudiante tiene clase de esta materia ese día
+    final entries =
+        ref.read(scheduleProvider.notifier).forDay(picked.weekday);
     final match = entries.where((e) => e.subject == _subject).toList();
 
     if (match.isNotEmpty) {
@@ -76,10 +78,9 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
       if (!mounted) return;
 
       if (accepted == true) {
-        // Usar la hora de la clase (startTime es 'H:MM', ej: '10:50')
-        final parts = entry.startTime.split(':');
-        final h = int.tryParse(parts[0]) ?? 0;
-        final m = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+        // Usar la hora de inicio de la clase (minutos desde medianoche)
+        final h = entry.startMin ~/ 60;
+        final m = entry.startMin % 60;
         setState(() {
           _dueDate = DateTime(
             picked.year, picked.month, picked.day, h, m,
@@ -107,16 +108,16 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
     });
   }
 
-  Future<bool?> _showScheduleSuggestion(ScheduleEntry entry) async {
+  Future<bool?> _showScheduleSuggestion(ScheduleBlock entry) async {
     return showDialog<bool>(
       context: context,
       builder: (ctx) {
         final isDark = Theme.of(ctx).brightness == Brightness.dark;
         final cardBg = isDark ? const Color(0xFF1E1E2E) : Colors.white;
-        final startH = entry.startTime.split(':').first.padLeft(2, '0');
-        final startM = entry.startTime.contains(':') ? entry.startTime.split(':')[1].padLeft(2, '0') : '00';
-        final endH = entry.endTime.split(':').first.padLeft(2, '0');
-        final endM = entry.endTime.contains(':') ? entry.endTime.split(':')[1].padLeft(2, '0') : '00';
+        final startH = (entry.startMin ~/ 60).toString().padLeft(2, '0');
+        final startM = (entry.startMin % 60).toString().padLeft(2, '0');
+        final endH = (entry.endMin ~/ 60).toString().padLeft(2, '0');
+        final endM = (entry.endMin % 60).toString().padLeft(2, '0');
         return AlertDialog(
           backgroundColor: cardBg,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

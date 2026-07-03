@@ -96,10 +96,15 @@ class FirebaseAuthRepository {
       'createdAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
-    // Custom claim (rules lo leen como request.auth.token.role)
-    await _functions.httpsCallable('registerRole').call({'role': role.name});
-    // Refrescar el token para que el claim aplique ya
-    await user.getIdToken(true);
+    // Custom claim (rules lo leen como request.auth.token.role).
+    // Best-effort: si Functions aún no está desplegado (plan Blaze
+    // pendiente), las reglas caen al rol del doc users/{uid}.
+    try {
+      await _functions.httpsCallable('registerRole').call({'role': role.name});
+      await user.getIdToken(true); // refrescar para que el claim aplique ya
+    } catch (e) {
+      debugPrint('[Auth] registerRole no disponible (se reintenta luego): $e');
+    }
   }
 
   /// Completa el perfil de un usuario ya autenticado (Google primer login).

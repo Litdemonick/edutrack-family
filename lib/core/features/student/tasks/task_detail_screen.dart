@@ -10,7 +10,7 @@ import 'package:edutrack_family/core/constants/app_strings.dart';
 import 'package:edutrack_family/core/constants/utils/date_utils.dart';
 import 'package:edutrack_family/core/data/local/models/task_model.dart';
 import 'package:edutrack_family/core/database/database_helper.dart';
-import 'package:edutrack_family/core/services/image_transfer_service.dart';
+import 'package:edutrack_family/core/services/evidence_image_service.dart';
 import 'package:edutrack_family/core/features/student/dashboard/widgets/traffic_light_badge.dart';
 import 'package:edutrack_family/core/shared/widgets/cached_local_image.dart';
 import 'package:edutrack_family/core/shared/widgets/fullscreen_image_viewer.dart';
@@ -53,7 +53,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
     }
 
     // Buscar en caché local del sistema de archivos
-    final cached = await ImageTransferService.instance.getLocalPaths(
+    final cached = await EvidenceImageService.instance.getLocalPaths(
       _task.id,
       'reference',
     );
@@ -65,9 +65,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
     }
 
     // Descargar de Firestore (primer acceso en este dispositivo)
-    final paths = await ImageTransferService.instance.downloadImages(
+    final paths = await EvidenceImageService.instance.downloadImages(
+      studentId: _task.studentId,
       taskId: _task.id,
-      type: 'reference',
+      kind: 'reference',
     );
     if (paths.isNotEmpty && mounted) {
       setState(() => _task = _task.copyWith(referenceImagePaths: paths));

@@ -7,11 +7,13 @@ import 'package:edutrack_family/core/data/local/repositories/event_repository.da
 import 'package:edutrack_family/core/services/sync_service.dart';
 import 'package:edutrack_family/core/services/notification_bus.dart';
 import 'package:edutrack_family/core/constants/utils/notification_utils.dart';
+import 'package:edutrack_family/core/providers/auth_provider.dart';
 import 'package:edutrack_family/core/providers/connectivity_provider.dart';
+import 'package:edutrack_family/core/providers/family_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════
-// EVENT PROVIDER — EduTrack Family
-// Estado global de eventos del calendario.
+// EVENT PROVIDER — EduTrack Family 2.0
+// Eventos del estudiante activo (multi-tenant).
 // ═══════════════════════════════════════════════════════════════
 
 class EventNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
@@ -24,11 +26,22 @@ class EventNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
   final _sync = SyncService.instance;
   final _uuid = const Uuid();
 
+  /// Estudiante cuyo contenido se muestra ahora mismo.
+  String? get _scopeStudentId {
+    final user = _ref.read(authProvider);
+    if (user == null) return null;
+    if (user.isStudent) return user.uid;
+    return _ref.read(activeStudentProvider)?.id;
+  }
+
   Future<void> loadEvents() async {
+    final scope = _scopeStudentId;
     final hasData = state.hasValue;
     if (!hasData) state = const AsyncValue.loading();
     try {
-      final events = await _repo.getAllEvents();
+      final events = scope == null
+          ? <EventModel>[]
+          : await _repo.getAllEvents(studentId: scope);
       state = AsyncValue.data(events);
     } catch (e, st) {
       if (!hasData) {
@@ -47,10 +60,17 @@ class EventNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
     DateTime? endDate,
     bool isAllDay = true,
     int reminderMinutesBefore = 60,
+    String? studentId,
   }) async {
+    final sid = studentId ?? _scopeStudentId;
+    if (sid == null) {
+      debugPrint('[EventProvider] createEvent sin estudiante activo');
+      return;
+    }
     final now = DateTime.now();
     final event = EventModel(
       id: _uuid.v4(),
+      studentId: sid,
       title: title,
       description: description,
       type: type,
@@ -73,7 +93,7 @@ class EventNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
       channel: NotificationChannel.system,
       eventId: event.id,
       payload: 'event:${event.id}',
-      targetRole: 'student',
+      targetUids: [sid],
     );
 
     // Programar recordatorio si el evento tiene hora
@@ -105,7 +125,7 @@ class EventNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
       channel: NotificationChannel.system,
       eventId: updated.id,
       payload: 'event:${updated.id}',
-      targetRole: 'student',
+      targetUids: [updated.studentId],
     );
 
     // Reprogramar recordatorio
@@ -145,7 +165,7 @@ class EventNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
         channel: NotificationChannel.system,
         eventId: eventId,
         payload: 'event_deleted:$eventId',
-        targetRole: 'student',
+        targetUids: [toDelete.studentId],
       );
       final isOnline = _ref.read(connectivityProvider);
       if (isOnline) {
@@ -180,5 +200,10 @@ class EventNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
 
 final eventProvider =
     StateNotifierProvider<EventNotifier, AsyncValue<List<EventModel>>>((ref) {
-      return EventNotifier(ref);
-    });
+  final notifier = EventNotifier(ref);
+  // Recargar al cambiar de estudiante activo o de sesión
+  ref.listen(activeStudentIdProvider, (_, _) => notifier.loadEvents());
+  ref.listen(linkedStudentsProvider, (_, _) => notifier.loadEvents());
+  ref.listen(authProvider, (_, _) => notifier.loadEvents());
+  return notifier;
+});

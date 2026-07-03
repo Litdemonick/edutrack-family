@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:edutrack_family/core/data/local/models/task_model.dart';
 import 'package:edutrack_family/core/data/local/repositories/task_repository.dart';
+import 'package:edutrack_family/core/providers/auth_provider.dart';
+import 'package:edutrack_family/core/providers/family_provider.dart';
 import 'package:edutrack_family/core/providers/task_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════
@@ -96,7 +98,16 @@ final _historicalTaskStatsProvider = FutureProvider<TaskStats?>((ref) async {
     orElse: () => false,
   );
   if (!hasLoadedTasks) return null;
-  final tasks = await TaskRepository.instance.getAllTasksForStats();
+
+  // Scoped al estudiante activo (sesión de alumno = él mismo)
+  final user = ref.watch(authProvider);
+  final scope = user == null
+      ? null
+      : (user.isStudent ? user.uid : ref.watch(activeStudentProvider)?.id);
+  if (scope == null) return null;
+
+  final tasks =
+      await TaskRepository.instance.getAllTasksForStats(studentId: scope);
   return _compute(tasks);
 });
 

@@ -24,6 +24,15 @@ service cloud.firestore {
       return isSignedIn() ? request.auth.token.get('role', '') : '';
     }
 
+    // Rol efectivo: custom claim si existe; si no, el doc users/{uid}.
+    // (Fallback para cuentas creadas antes de que registerRole asigne
+    // el claim — p. ej. mientras Functions no está desplegado.)
+    function effectiveRole() {
+      return role() != ''
+        ? role()
+        : get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
     // ── Perfil de usuario ─────────────────────────────────────
     match /users/{uid} {
       allow read: if isSignedIn() && request.auth.uid == uid;
@@ -71,7 +80,7 @@ service cloud.firestore {
 
       // Perfil del estudiante
       allow create: if isSignedIn()
-        && role() == 'parent'
+        && effectiveRole() == 'parent'
         && request.auth.uid in request.resource.data.parentIds
         && request.resource.data.name is string
         && request.resource.data.name.size() <= 80;

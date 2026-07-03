@@ -15,13 +15,18 @@ class EventRepository {
   static const _table = DatabaseHelper.tableEvent;
 
   Future<void> createEvent(EventModel event) async {
-    await _db.insert(_table, event.toMap());
+    final map = event.toMap();
+    map['is_dirty'] = 1; // pendiente de subir (SyncService lo limpia)
+    await _db.insert(_table, map);
   }
 
-  Future<List<EventModel>> getAllEvents() async {
+  Future<List<EventModel>> getAllEvents({String? studentId}) async {
     final rows = await _db.queryAll(
       _table,
-      where: 'is_deleted = 0',
+      where: studentId == null
+          ? 'is_deleted = 0'
+          : 'is_deleted = 0 AND student_id = ?',
+      whereArgs: studentId == null ? null : [studentId],
       orderBy: 'date ASC',
     );
     return rows.map(EventModel.fromMap).toList();
@@ -55,7 +60,9 @@ class EventRepository {
   }
 
   Future<void> updateEvent(EventModel event) async {
-    await _db.update(_table, event.toMap(), event.id);
+    final map = event.toMap();
+    map['is_dirty'] = 1; // pendiente de subir (SyncService lo limpia)
+    await _db.update(_table, map, event.id);
   }
 
   Future<void> deleteEvent(String id) async {

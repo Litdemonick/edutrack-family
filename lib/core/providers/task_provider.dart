@@ -4,16 +4,20 @@ import 'package:uuid/uuid.dart';
 import 'package:edutrack_family/core/data/local/models/task_model.dart';
 import 'package:edutrack_family/core/data/local/models/notification_model.dart';
 import 'package:edutrack_family/core/data/local/repositories/task_repository.dart';
+import 'package:edutrack_family/core/providers/auth_provider.dart';
+import 'package:edutrack_family/core/providers/connectivity_provider.dart';
+import 'package:edutrack_family/core/providers/family_provider.dart';
+import 'package:edutrack_family/core/services/evidence_image_service.dart';
+import 'package:edutrack_family/core/services/notification_bus.dart';
 import 'package:edutrack_family/core/services/notification_service.dart';
 import 'package:edutrack_family/core/services/sync_service.dart';
-import 'package:edutrack_family/core/services/image_transfer_service.dart';
-import 'package:edutrack_family/core/services/notification_bus.dart';
-import 'package:edutrack_family/core/providers/connectivity_provider.dart';
 import '../../main.dart';
 
 // ═══════════════════════════════════════════════════════════════
-// TASK PROVIDER — EduTrack Family
-// Estado global de tareas: carga, crea, edita, completa.
+// TASK PROVIDER — EduTrack Family 2.0
+// Tareas SIEMPRE del estudiante activo:
+//   sesión de estudiante → sus propias tareas (uid == studentId)
+//   sesión de adulto     → las del hijo seleccionado en el selector
 // ═══════════════════════════════════════════════════════════════
 
 class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
@@ -27,13 +31,22 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
   final _sync = SyncService.instance;
   final _uuid = const Uuid();
 
-
+  /// Estudiante cuyo contenido se muestra ahora mismo.
+  String? get _scopeStudentId {
+    final user = _ref.read(authProvider);
+    if (user == null) return null;
+    if (user.isStudent) return user.uid;
+    return _ref.read(activeStudentProvider)?.id;
+  }
 
   Future<void> loadTasks() async {
+    final scope = _scopeStudentId;
     final hasData = state.hasValue;
     if (!hasData) state = const AsyncValue.loading();
     try {
-      final tasks = await _repo.getAllActiveTasks();
+      final tasks = scope == null
+          ? <TaskModel>[]
+          : await _repo.getAllActiveTasks(studentId: scope);
       state = AsyncValue.data(tasks);
       _checkOverdue(tasks);
     } catch (e, st) {
@@ -51,18 +64,17 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
     // Saltar durante la primera sincronización: no spamear vencimientos históricos
     if (!(prefs.getBool('is_first_sync_completed') ?? false)) return;
 
-    final overdue = tasks
-        .where((t) => t.isOverdueTask && !t.isCompleted)
-        .toList();
+    final overdue =
+        tasks.where((t) => t.isOverdueTask && !t.isCompleted).toList();
     if (overdue.isEmpty) return;
 
-    final notifiedIds = Set<String>.from(
-        prefs.getStringList('overdue_notified_ids') ?? []);
+    final notifiedIds =
+        Set<String>.from(prefs.getStringList('overdue_notified_ids') ?? []);
 
     bool changed = false;
     for (final t in overdue) {
       if (notifiedIds.contains(t.id)) continue;
-      // Doble capa: urgente para ambos roles
+      // Local en este dispositivo; cada dispositivo detecta lo suyo
       await NotificationBus.dispatchFromProvider(
         ref: _ref,
         title: '🔴 Tarea vencida',
@@ -72,7 +84,6 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
         requireConfirm: true,
         taskId: t.id,
         payload: 'task:${t.id}',
-        targetRole: null, // Se avisa a ambos localmente
       );
       notifiedIds.add(t.id);
       changed = true;
@@ -82,6 +93,10 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
     }
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // CREAR (padre/profesor → estudiante concreto)
+  // ─────────────────────────────────────────────────────────────
+
   Future<void> createTask({
     required String title,
     required String subject,
@@ -90,10 +105,18 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
     required DateTime dueDate,
     int notificationDaysBefore = 1,
     List<String> referenceImagePaths = const [],
+    String? studentId,
   }) async {
+    final sid = studentId ?? _scopeStudentId;
+    if (sid == null) {
+      debugPrint('[TaskProvider] createTask sin estudiante activo');
+      return;
+    }
     final now = DateTime.now();
     final task = TaskModel(
       id: _uuid.v4(),
+      studentId: sid,
+      assignedBy: _ref.read(authProvider)?.uid,
       title: title,
       subject: subject,
       description: description,
@@ -103,14 +126,14 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
       updatedAt: now,
       notificationDaysBefore: notificationDaysBefore,
       referenceImagePaths: referenceImagePaths,
-      // Flag: avisa al estudiante que hay imágenes aunque paths estén vacíos en Firestore
+      // Flag: avisa que hay imágenes aunque los paths no viajen a Firestore
       hasReferenceImages: referenceImagePaths.isNotEmpty,
     );
 
     await _repo.createTask(task);
     await _notifService.scheduleForTask(task);
 
-    // Notificación doble capa: Admin (local inmediata) + Estudiante (FCM)
+    // Campana local + FCM al dispositivo del estudiante
     await NotificationBus.dispatchFromProvider(
       ref: _ref,
       title: '📌 Nueva tarea asignada',
@@ -119,35 +142,31 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
       channel: NotificationChannel.system,
       taskId: task.id,
       payload: 'task:${task.id}',
-      targetRole: 'student',
+      targetUids: [sid],
     );
 
-    // Subir imágenes a Firestore (base64) — Firestore SDK gestiona offline/retry
+    // Imágenes de referencia → Firebase Storage
     if (task.referenceImagePaths.isNotEmpty) {
-      await ImageTransferService.instance.uploadImages(
+      await EvidenceImageService.instance.uploadImages(
+        studentId: sid,
         taskId: task.id,
-        type: 'reference',
+        kind: 'reference',
         localPaths: task.referenceImagePaths,
       );
     }
 
-    // Sincronizar tarea (con flag has_reference_images=true)
     await _sync.pushTask(task);
     await loadTasks();
   }
 
-
   Future<void> updateTask(TaskModel task) async {
-    final updated = task.copyWith(
-      updatedAt: DateTime.now(),
-    );
+    final updated = task.copyWith(updatedAt: DateTime.now());
     await _repo.updateTask(updated);
     await _notifService.cancelForTask(updated.id);
     if (updated.isPending) {
       await _notifService.scheduleForTask(updated);
     }
 
-    // Doble capa: Admin ve confirmación local, Estudiante recibe FCM
     await NotificationBus.dispatchFromProvider(
       ref: _ref,
       title: '✏️ Tarea actualizada',
@@ -156,19 +175,20 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
       channel: NotificationChannel.system,
       taskId: updated.id,
       payload: 'task:${updated.id}',
-      targetRole: 'student',
+      targetUids: [updated.studentId],
     );
 
-    // Actualizar localmente
     await loadTasks();
 
-    // Re-subir imágenes si hay nuevas
     if (updated.referenceImagePaths.isNotEmpty) {
-      ImageTransferService.instance.uploadImages(
+      EvidenceImageService.instance
+          .uploadImages(
+        studentId: updated.studentId,
         taskId: updated.id,
-        type: 'reference',
+        kind: 'reference',
         localPaths: updated.referenceImagePaths,
-      ).then((_) async {
+      )
+          .then((_) async {
         await _sync.pushTask(updated);
         await loadTasks();
       });
@@ -191,7 +211,6 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
         channel: NotificationChannel.system,
         taskId: task.id,
         payload: 'task:${task.id}',
-        targetRole: 'student',
       );
       final isOnline = _ref.read(connectivityProvider);
       if (isOnline) await _sync.pushTask(task);
@@ -199,6 +218,10 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
 
     await loadTasks();
   }
+
+  // ─────────────────────────────────────────────────────────────
+  // FLUJO DE REVISIÓN (estudiante → padres/profesores)
+  // ─────────────────────────────────────────────────────────────
 
   Future<void> submitForReview(
     String taskId, {
@@ -211,11 +234,12 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
 
     final task = await _repo.getTaskById(taskId);
     if (task != null) {
-      // Subir fotos de evidencia — Firestore SDK gestiona offline/retry
+      // Evidencias → Firebase Storage
       if (task.evidencePhotoPaths.isNotEmpty) {
-        await ImageTransferService.instance.uploadImages(
+        await EvidenceImageService.instance.uploadImages(
+          studentId: task.studentId,
           taskId: task.id,
-          type: 'evidence',
+          kind: 'evidence',
           localPaths: task.evidencePhotoPaths,
         );
       }
@@ -228,7 +252,7 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
         channel: NotificationChannel.system,
         taskId: task.id,
         payload: 'task:${task.id}',
-        targetRole: 'admin',
+        targetUids: await NotificationBus.guardianTargets(task.studentId),
       );
     }
     await loadTasks();
@@ -239,7 +263,6 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
 
     final task = await _repo.getTaskById(taskId);
     if (task != null) {
-      // Doble capa: Admin ve confirmación local, Estudiante recibe FCM
       await NotificationBus.dispatchFromProvider(
         ref: _ref,
         title: '🎉 ¡Tarea aceptada!',
@@ -248,7 +271,7 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
         channel: NotificationChannel.system,
         taskId: task.id,
         payload: 'task:${task.id}',
-        targetRole: 'student',
+        targetUids: [task.studentId],
       );
       final isOnline = _ref.read(connectivityProvider);
       if (isOnline) await _sync.pushTask(task);
@@ -274,7 +297,8 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
 
     // Optimistic update: remove task del estado inmediatamente
     state = state.maybeWhen(
-      data: (tasks) => AsyncValue.data(tasks.where((t) => t.id != taskId).toList()),
+      data: (tasks) =>
+          AsyncValue.data(tasks.where((t) => t.id != taskId).toList()),
       orElse: () => state,
     );
 
@@ -287,7 +311,7 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
         channel: NotificationChannel.system,
         taskId: taskId,
         payload: 'task_deleted:$taskId',
-        targetRole: 'student',
+        targetUids: [task.studentId],
       );
       final isOnline = _ref.read(connectivityProvider);
       if (isOnline) {
@@ -298,7 +322,6 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
       }
     }
 
-    // Refrescar desde DB para confirmar
     try {
       await loadTasks();
     } catch (e) {
@@ -318,7 +341,8 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
     await loadTasks();
   }
 
-  Future<Map<String, int>> getStats() => _repo.getStats();
+  Future<Map<String, int>> getStats() =>
+      _repo.getStats(studentId: _scopeStudentId);
 
   List<TaskModel> get pendingTasks {
     return state.maybeWhen(
@@ -356,5 +380,10 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
 
 final taskProvider =
     StateNotifierProvider<TaskNotifier, AsyncValue<List<TaskModel>>>((ref) {
-      return TaskNotifier(ref);
-    });
+  final notifier = TaskNotifier(ref);
+  // Recargar al cambiar de estudiante activo o de sesión
+  ref.listen(activeStudentIdProvider, (_, _) => notifier.loadTasks());
+  ref.listen(linkedStudentsProvider, (_, _) => notifier.loadTasks());
+  ref.listen(authProvider, (_, _) => notifier.loadTasks());
+  return notifier;
+});

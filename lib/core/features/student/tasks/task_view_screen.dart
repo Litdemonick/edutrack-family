@@ -10,7 +10,7 @@ import 'package:edutrack_family/core/constants/utils/date_utils.dart';
 import 'package:edutrack_family/core/data/local/models/task_model.dart';
 import 'package:edutrack_family/core/database/database_helper.dart';
 import 'package:edutrack_family/core/providers/task_provider.dart';
-import 'package:edutrack_family/core/services/image_transfer_service.dart';
+import 'package:edutrack_family/core/services/evidence_image_service.dart';
 import 'package:edutrack_family/core/shared/widgets/confirmation_dialog.dart';
 import 'package:edutrack_family/core/features/student/dashboard/widgets/traffic_light_badge.dart';
 import 'package:edutrack_family/core/shared/widgets/cached_local_image.dart';
@@ -43,7 +43,7 @@ class _TaskViewScreenState extends ConsumerState<TaskViewScreen> {
   }
 
   Future<void> _downloadImagesIfNeeded() async {
-    final imgSvc = ImageTransferService.instance;
+    final imgSvc = EvidenceImageService.instance;
     bool changed = false;
 
     // Imágenes de referencia
@@ -51,7 +51,7 @@ class _TaskViewScreenState extends ConsumerState<TaskViewScreen> {
       final needsRefresh = await _imagesNeedRefresh(_task.referenceImagePaths);
       if (needsRefresh) {
         // Forzar re-descarga desde Firestore (Admin editó o primer acceso)
-        final paths = await imgSvc.downloadImages(taskId: _task.id, type: 'reference');
+        final paths = await imgSvc.downloadImages(studentId: _task.studentId, taskId: _task.id, kind: 'reference');
         if (paths.isNotEmpty) {
           _task = _task.copyWith(referenceImagePaths: paths);
           changed = true;
@@ -70,7 +70,7 @@ class _TaskViewScreenState extends ConsumerState<TaskViewScreen> {
     if (_task.hasEvidence) {
       final needsRefresh = await _imagesNeedRefresh(_task.evidencePhotoPaths);
       if (needsRefresh) {
-        final paths = await imgSvc.downloadImages(taskId: _task.id, type: 'evidence');
+        final paths = await imgSvc.downloadImages(studentId: _task.studentId, taskId: _task.id, kind: 'evidence');
         if (paths.isNotEmpty) {
           _task = _task.copyWith(evidencePhotoPaths: paths);
           changed = true;
