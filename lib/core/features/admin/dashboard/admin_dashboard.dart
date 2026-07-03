@@ -15,6 +15,7 @@ import 'package:edutrack_family/core/shared/widgets/loading_widget.dart';
 import 'package:edutrack_family/core/shared/widgets/animated_bell_icon.dart';
 import 'package:edutrack_family/core/features/admin/dashboard/widgets/stats_card.dart';
 import 'package:edutrack_family/core/features/student/dashboard/widgets/traffic_light_badge.dart';
+import 'package:edutrack_family/features/family/presentation/widgets/student_selector.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // ADMIN DASHBOARD — EduTrack Family
@@ -44,6 +45,9 @@ class AdminDashboard extends ConsumerWidget {
           surfaceTintColor: Colors.transparent,
           systemOverlayStyle: SystemUiOverlayStyle.light,
           actions: [
+            // Selector de hijo/estudiante activo (multi-hijo 2.0)
+            const StudentSelector(),
+            const SizedBox(width: 6),
             // Avatar de perfil
             if (user != null)
               Padding(

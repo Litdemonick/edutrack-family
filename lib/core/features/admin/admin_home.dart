@@ -125,10 +125,22 @@ class _AdminHomeState extends ConsumerState<AdminHome>
                     label: 'Ajustes',
                     color: AppColors.grey,
                     visible: _fabOpen,
-                    delayMs: 240,
+                    delayMs: 300,
                     onTap: () {
                       _closeFab();
                       context.push(AppRoutes.settings);
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  _SpeedDialItem(
+                    icon: Icons.family_restroom_rounded,
+                    label: 'Mi familia',
+                    color: const Color(0xFFE91E63),
+                    visible: _fabOpen,
+                    delayMs: 240,
+                    onTap: () {
+                      _closeFab();
+                      context.push(AppRoutes.family);
                     },
                   ),
                   const SizedBox(height: 14),
@@ -152,7 +164,7 @@ class _AdminHomeState extends ConsumerState<AdminHome>
                   const SizedBox(height: 14),
                   _SpeedDialItem(
                     icon: Icons.calendar_view_week_rounded,
-                    label: 'Horario de Yordan',
+                    label: 'Horario',
                     color: const Color(0xFF00BCD4),
                     visible: _fabOpen,
                     delayMs: 60,
