@@ -31,6 +31,7 @@ import 'features/auth/presentation/complete_profile_screen.dart';
 import 'features/auth/presentation/forgot_password_screen.dart';
 import 'features/auth/presentation/student_code_screen.dart';
 import 'features/auth/presentation/biometric_gate_screen.dart';
+import 'features/family/presentation/family_screen.dart';
 import 'core/features/permissions/permission_gate_screen.dart';
 import 'core/features/student/student_home.dart';
 import 'core/features/student/tasks/task_detail_screen.dart';
@@ -158,6 +159,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.settings,
         builder: (_, _) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.family,
+        builder: (_, _) => const FamilyScreen(),
       ),
       GoRoute(
         path: AppRoutes.notifications,

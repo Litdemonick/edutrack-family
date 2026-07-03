@@ -11,6 +11,7 @@ import 'package:edutrack_family/core/providers/notification_provider.dart';
 import 'package:edutrack_family/core/providers/notification_settings_provider.dart';
 import 'package:edutrack_family/core/providers/profile_photo_provider.dart';
 import 'package:edutrack_family/core/services/ringtone_service.dart';
+import 'package:edutrack_family/core/services/biometric_service.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // SETTINGS SCREEN — EduTrack Family
@@ -52,6 +53,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _ProfileCard(user: user, isDark: isDark),
           const SizedBox(height: 20),
 
+          // ── Familia (solo adultos) ────────────────────────────
+          if (user.isAdmin) ...[
+            _SectionHeader(title: 'Familia', isDark: isDark),
+            _SettingsCard(
+              isDark: isDark,
+              children: [
+                _SettingsTile(
+                  icon: Icons.family_restroom_rounded,
+                  title: 'Mi familia',
+                  subtitle:
+                      'Hijos, códigos de vinculación y profesores',
+                  isDark: isDark,
+                  onTap: () => context.push(AppRoutes.family),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+
           // ── Seguridad ─────────────────────────────────────────
           _SectionHeader(title: 'Seguridad', isDark: isDark),
           _SettingsCard(
@@ -76,6 +96,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const Divider(height: 1),
                 _ChangePasswordForm(isDark: isDark),
               ],
+              const Divider(height: 1),
+              _BiometricToggleTile(isDark: isDark),
+              const Divider(height: 1),
+              _LinkGoogleTile(isDark: isDark),
             ],
           ),
           const SizedBox(height: 20),
@@ -558,6 +582,134 @@ class _ThemeToggleTile extends ConsumerWidget {
         activeThumbColor: AppColors.accentBlue,
         activeTrackColor: AppColors.accentBlue.withValues(alpha: 0.4),
       ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TOGGLE BIOMETRÍA (huella / Face ID)
+// ─────────────────────────────────────────────────────────────
+class _BiometricToggleTile extends ConsumerStatefulWidget {
+  final bool isDark;
+  const _BiometricToggleTile({required this.isDark});
+
+  @override
+  ConsumerState<_BiometricToggleTile> createState() =>
+      _BiometricToggleTileState();
+}
+
+class _BiometricToggleTileState extends ConsumerState<_BiometricToggleTile> {
+  bool _available = false;
+
+  @override
+  void initState() {
+    super.initState();
+    BiometricService.instance.isAvailable().then((v) {
+      if (mounted) setState(() => _available = v);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_available) return const SizedBox.shrink();
+    final enabled = ref.watch(
+        authProvider.select((_) =>
+            ref.read(authProvider.notifier).biometricEnabled));
+
+    return ListTile(
+      leading:
+          const Icon(Icons.fingerprint, color: AppColors.accentBlue, size: 24),
+      title: Text(
+        'Desbloqueo con huella',
+        style: TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: widget.isDark ? Colors.white : AppColors.navyBlue,
+        ),
+      ),
+      subtitle: Text(
+        'Pide tu huella al abrir la app',
+        style: TextStyle(
+          fontFamily: 'Nunito',
+          fontSize: 12,
+          color: widget.isDark ? Colors.white54 : AppColors.grey,
+        ),
+      ),
+      trailing: Switch(
+        value: enabled,
+        onChanged: (v) async {
+          if (v) {
+            // Confirmar identidad antes de activar
+            final ok = await BiometricService.instance
+                .authenticate(reason: 'Confirma tu huella para activar');
+            if (!ok) return;
+          }
+          await ref.read(authProvider.notifier).setBiometricEnabled(v);
+          if (mounted) setState(() {});
+        },
+        activeThumbColor: AppColors.accentBlue,
+        activeTrackColor: AppColors.accentBlue.withValues(alpha: 0.4),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// VINCULAR CUENTA DE GOOGLE
+// ─────────────────────────────────────────────────────────────
+class _LinkGoogleTile extends ConsumerWidget {
+  final bool isDark;
+  const _LinkGoogleTile({required this.isDark});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider);
+    if (user == null || user.isStudent) return const SizedBox.shrink();
+    final linked = user.hasGoogleLinked;
+
+    return ListTile(
+      leading: const Icon(Icons.link_rounded,
+          color: AppColors.accentBlue, size: 24),
+      title: Text(
+        linked ? 'Google vinculado' : 'Vincular con Google',
+        style: TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: isDark ? Colors.white : AppColors.navyBlue,
+        ),
+      ),
+      subtitle: Text(
+        linked
+            ? 'Puedes iniciar sesión con tu cuenta de Google'
+            : 'Entra también con tu cuenta de Google',
+        style: TextStyle(
+          fontFamily: 'Nunito',
+          fontSize: 12,
+          color: isDark ? Colors.white54 : AppColors.grey,
+        ),
+      ),
+      trailing: linked
+          ? const Icon(Icons.check_circle, color: Colors.green, size: 20)
+          : const Icon(Icons.chevron_right_rounded),
+      onTap: linked
+          ? null
+          : () async {
+              final result =
+                  await ref.read(authProvider.notifier).linkWithGoogle();
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(result.ok
+                    ? 'Cuenta de Google vinculada ✓'
+                    : result.error!),
+                backgroundColor: result.ok
+                    ? Colors.green.shade700
+                    : Colors.red.shade700,
+              ));
+            },
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
     );
   }
