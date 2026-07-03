@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -23,6 +25,7 @@ import 'core/services/sync_service.dart';
 import 'core/services/app_lifecycle_service.dart';
 import 'core/services/fcm_service.dart';
 import 'core/services/notification_bus.dart';
+import 'core/constants/utils/notification_utils.dart';
 
 import 'core/providers/family_provider.dart';
 import 'features/auth/presentation/login_screen.dart';
@@ -33,6 +36,7 @@ import 'features/auth/presentation/forgot_password_screen.dart';
 import 'features/auth/presentation/student_code_screen.dart';
 import 'features/auth/presentation/biometric_gate_screen.dart';
 import 'features/family/presentation/family_screen.dart';
+import 'features/location/parent/child_map_screen.dart';
 import 'core/features/permissions/permission_gate_screen.dart';
 import 'core/features/student/student_home.dart';
 import 'core/features/student/tasks/task_detail_screen.dart';
@@ -166,6 +170,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const FamilyScreen(),
       ),
       GoRoute(
+        path: AppRoutes.locationMap,
+        builder: (_, _) => const ChildMapScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.notifications,
         builder: (_, _) => const NotificationsScreen(),
       ),
@@ -280,6 +288,7 @@ class _EduTrackAppState extends ConsumerState<EduTrackApp>
 
     // Registrar este dispositivo para push FCM (por uid)
     FcmService.instance.registerDevice(user.uid);
+    _listenForegroundPush();
 
     // Refrescar la lista de estudiantes vinculados (scope del sync)
     final family = ref.read(linkedStudentsProvider.notifier);
@@ -378,10 +387,52 @@ class _EduTrackAppState extends ConsumerState<EduTrackApp>
     );
   }
 
+  StreamSubscription? _fcmForegroundSub;
+
+  /// Push FCM llegadas con la app abierta: el sistema no las muestra,
+  /// así que las mostramos como notificación local. Las urgentes
+  /// (sismo, check-in) van por el canal urgente con sonido fuerte.
+  void _listenForegroundPush() {
+    if (_fcmForegroundSub != null) return;
+    if (kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.android &&
+            defaultTargetPlatform != TargetPlatform.iOS)) {
+      return;
+    }
+    _fcmForegroundSub =
+        FcmService.instance.onForegroundMessage.listen((message) async {
+      final title = message.notification?.title;
+      final body = message.notification?.body;
+      if (title == null || body == null) return;
+
+      final type = message.data['type'] as String?;
+      // El check-in del hijo lo maneja WellnessCheckGate por Firestore;
+      // no duplicar notificación en su dispositivo.
+      if (type == 'wellness_check') return;
+
+      final urgent = type == 'seismic' || type == 'wellness_timeout';
+      if (urgent) {
+        await NotificationUtils.showUrgentNotification(
+          title: title,
+          body: body,
+          requireConfirm: type == 'seismic',
+          notifType: NotificationType.general,
+        );
+      } else {
+        await NotificationUtils.showSystemNotification(
+          title: title,
+          body: body,
+          notifType: NotificationType.general,
+        );
+      }
+    });
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _bgTimer?.cancel();
+    _fcmForegroundSub?.cancel();
     super.dispose();
   }
 

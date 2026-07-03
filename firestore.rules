@@ -124,9 +124,11 @@ service cloud.firestore {
         allow delete: if isGuardian();
       }
 
-      // ── Ubicación: SOLO padres leen, SOLO el hijo escribe ───
+      // ── Ubicación: padres y el propio hijo leen; SOLO el hijo
+      //    escribe (posiciones y su doc de consentimiento
+      //    locations/consent). Profesores NUNCA. ────────────────
       match /locations/{document=**} {
-        allow read: if isGuardian();
+        allow read: if isGuardian() || isTheChild();
         allow write: if isTheChild();
       }
 

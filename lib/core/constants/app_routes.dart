@@ -41,6 +41,9 @@ class AppRoutes {
   /// Gestión de familia: hijos, códigos, vínculos
   static const String family = '/family';
 
+  /// Mapa de ubicación del hijo (padres)
+  static const String locationMap = '/location-map';
+
   // ─────────────────────────────────────────────────────────────
   // RUTAS DEL ESTUDIANTE (Yordan)
   // ─────────────────────────────────────────────────────────────

@@ -145,6 +145,18 @@ class _AdminHomeState extends ConsumerState<AdminHome>
                   ),
                   const SizedBox(height: 14),
                   _SpeedDialItem(
+                    icon: Icons.location_on_rounded,
+                    label: 'Ubicación',
+                    color: const Color(0xFF009688),
+                    visible: _fabOpen,
+                    delayMs: 210,
+                    onTap: () {
+                      _closeFab();
+                      context.push(AppRoutes.locationMap);
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  _SpeedDialItem(
                     icon: Icons.bar_chart_rounded,
                     label: 'Estadísticas',
                     color: const Color(0xFFFF9800),

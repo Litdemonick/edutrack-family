@@ -11,6 +11,8 @@ import 'package:edutrack_family/core/features/student/events/student_event_list.
 import 'package:edutrack_family/core/features/student/calendar/student_calendar.dart';
 import 'package:edutrack_family/core/features/student/calendar/schedule/class_schedule_screen.dart';
 import 'package:edutrack_family/core/features/student/stats/student_stats_screen.dart';
+import 'package:edutrack_family/features/location/child/location_consent.dart';
+import 'package:edutrack_family/features/safety/wellness_check.dart';
 
 class StudentHome extends ConsumerStatefulWidget {
   const StudentHome({super.key});
@@ -90,6 +92,10 @@ class _StudentHomeState extends ConsumerState<StudentHome>
               Expanded(child: _pages[_currentIndex]),
             ],
           ),
+
+          // ── Coordinadores invisibles (GPS + check-in) ────────
+          const LocationCoordinator(),
+          const WellnessCheckGate(),
 
           // ── Overlay de atenuación al abrir FAB ──────────────
           AnimatedOpacity(
