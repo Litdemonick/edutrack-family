@@ -10,5 +10,5 @@
 class ApiConfig {
   ApiConfig._();
 
-  static const String baseUrl = 'https://edutrack-family-api.workers.dev';
+  static const String baseUrl = 'https://edutrack-family-api.edutrack-family.workers.dev';
 }
