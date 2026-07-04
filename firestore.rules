@@ -11,6 +11,12 @@ rules_version = '2';
 // Principio: TODO lo de un estudiante vive bajo students/{studentId}.
 // El doc padre lleva parentIds[] y teacherIds[]; un get() a ese doc
 // autoriza el subárbol completo.
+//
+// El backend (workers/edutrack-api, Cloudflare Workers) accede con
+// un service account de Google Cloud — eso IGNORA estas reglas por
+// completo (igual que hacía el SDK de Admin en Cloud Functions), así
+// que linkCodes/seismicEvents siguen protegidos del lado del cliente
+// aunque el backend sí pueda leerlos/escribirlos.
 // ═══════════════════════════════════════════════════════════════
 
 service cloud.firestore {
@@ -157,18 +163,12 @@ service cloud.firestore {
       }
     }
 
-    // ── Códigos de vinculación: SOLO Cloud Functions ──────────
+    // ── Códigos de vinculación: SOLO el backend (Cloudflare) ──
     match /linkCodes/{code} {
       allow read, write: if false;
     }
 
-    // ── Cola de push: clientes solo crean ─────────────────────
-    match /push_queue/{pushId} {
-      allow create: if isSignedIn();
-      allow read, update, delete: if false;
-    }
-
-    // ── Eventos sísmicos: solo lectura (escribe la CF) ────────
+    // ── Eventos sísmicos: solo lectura (escribe el backend) ───
     match /seismicEvents/{eventId} {
       allow read: if isSignedIn();
       allow write: if false;

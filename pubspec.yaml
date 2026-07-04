@@ -56,7 +56,6 @@ dependencies:
   cloud_firestore: ^6.6.0         # Base de datos en la nube en tiempo real (sync)
   firebase_storage: ^13.0.4       # Almacenamiento de fotos de evidencia en la nube
   firebase_messaging: ^16.4.1     # Push FCM (sobrevive al cierre de la app)
-  cloud_functions: ^6.0.4         # Callables: registerRole, createLinkCode, redeemLinkCode
   google_sign_in: ^7.2.0          # Inicio de sesión con Google (API v7)
 
   # ─────────────────────────────────────────
@@ -111,6 +110,7 @@ dependencies:
   flutter_slidable: ^3.1.2        # Deslizar para eliminar/editar items de lista
   flutter_image_compress: ^2.4.0
   share_plus: ^13.1.0
+  http: ^1.2.2                    # Llamadas al backend en Cloudflare Workers (workers/edutrack-api)
 
 dev_dependencies:
   flutter_test:

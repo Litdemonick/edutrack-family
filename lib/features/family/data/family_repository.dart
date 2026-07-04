@@ -1,10 +1,10 @@
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:edutrack_family/core/data/local/models/student_model.dart';
 import 'package:edutrack_family/core/data/local/repositories/student_repository.dart';
 import 'package:edutrack_family/core/firebase/firestore_service.dart';
+import 'package:edutrack_family/core/services/api_client.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // FAMILY REPOSITORY — EduTrack Family 2.0
@@ -51,24 +51,21 @@ class FamilyRepository {
     await StudentRepository.instance.upsert(updated);
   }
 
-  /// Genera un código de vinculación vía Cloud Function.
+  /// Genera un código de vinculación vía el backend (Cloudflare Worker).
   /// kind: 'child-device' (dispositivo del hijo) | 'teacher' (profesor)
   Future<LinkCodeResult> generateLinkCode({
     required String studentId,
     required String kind,
   }) async {
     try {
-      final result = await FirebaseFunctions.instance
-          .httpsCallable('createLinkCode')
-          .call<Map<String, dynamic>>({
+      final result = await ApiClient.instance.call('/create-link-code', {
         'studentId': studentId,
         'kind': kind,
       });
-      return LinkCodeResult.success(result.data['code'] as String);
-    } on FirebaseFunctionsException catch (e) {
-      debugPrint('[Family] createLinkCode: ${e.code} ${e.message}');
-      return LinkCodeResult.fail(
-          e.message ?? 'No se pudo generar el código.');
+      return LinkCodeResult.success(result['code'] as String);
+    } on ApiException catch (e) {
+      debugPrint('[Family] createLinkCode: $e');
+      return LinkCodeResult.fail(e.message);
     } catch (e) {
       return const LinkCodeResult.fail('Error de conexión.');
     }
@@ -77,17 +74,13 @@ class FamilyRepository {
   /// Profesor canjea un código de vinculación de estudiante.
   Future<LinkCodeResult> redeemTeacherCode(String code) async {
     try {
-      final result = await FirebaseFunctions.instance
-          .httpsCallable('redeemLinkCode')
-          .call<Map<String, dynamic>>({'code': code.toUpperCase().trim()});
-      return LinkCodeResult.success(result.data['studentId'] as String?);
-    } on FirebaseFunctionsException catch (e) {
-      return LinkCodeResult.fail(switch (e.code) {
-        'not-found' => 'Código no válido.',
-        'failed-precondition' => 'El código expiró o ya fue usado.',
-        'permission-denied' => e.message ?? 'Código no válido para tu rol.',
-        _ => e.message ?? 'No se pudo canjear el código.',
-      });
+      final result = await ApiClient.instance.call(
+        '/redeem-link-code',
+        {'code': code.toUpperCase().trim()},
+      );
+      return LinkCodeResult.success(result['studentId'] as String?);
+    } on ApiException catch (e) {
+      return LinkCodeResult.fail(e.message);
     } catch (_) {
       return const LinkCodeResult.fail('Error de conexión.');
     }

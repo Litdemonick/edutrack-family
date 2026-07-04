@@ -1,16 +1,16 @@
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:edutrack_family/core/providers/auth_provider.dart';
+import 'package:edutrack_family/core/services/api_client.dart';
 import 'widgets/auth_widgets.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // ACCESO DE ESTUDIANTE POR CÓDIGO — EduTrack Family 2.0
 // El niño escribe el código que generó su padre/tutor:
-//   1. signInAnonymously() (bootstrap para poder llamar la CF)
+//   1. signInAnonymously() (bootstrap para poder llamar al backend)
 //   2. redeemLinkCode(code) → custom token con uid = studentId
 //   3. signInWithCustomToken → sesión permanente del niño
 // ═══════════════════════════════════════════════════════════════
@@ -51,11 +51,10 @@ class _StudentCodeScreenState extends ConsumerState<StudentCodeScreen> {
       }
 
       // 2. Canjear el código
-      final result = await FirebaseFunctions.instance
-          .httpsCallable('redeemLinkCode')
-          .call<Map<String, dynamic>>({'code': code});
+      final result =
+          await ApiClient.instance.call('/redeem-link-code', {'code': code});
 
-      final token = result.data['token'] as String?;
+      final token = result['token'] as String?;
       if (token == null) {
         throw Exception('Respuesta inválida del servidor');
       }
@@ -66,16 +65,8 @@ class _StudentCodeScreenState extends ConsumerState<StudentCodeScreen> {
         setState(() => _error = auth.error);
       }
       // El router redirige a /student al detectar la sesión
-    } on FirebaseFunctionsException catch (e) {
-      setState(() {
-        _error = switch (e.code) {
-          'not-found' => 'Código no válido. Revisa que esté bien escrito.',
-          'deadline-exceeded' ||
-          'failed-precondition' =>
-            'El código expiró o ya fue usado. Pide uno nuevo.',
-          _ => e.message ?? 'No se pudo validar el código.',
-        };
-      });
+    } on ApiException catch (e) {
+      setState(() => _error = e.message);
     } catch (e) {
       setState(() => _error = 'Error de conexión. Revisa tu internet.');
     } finally {

@@ -7,6 +7,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 
 import 'package:edutrack_family/core/database/database_helper.dart';
+import 'package:edutrack_family/core/services/push_queue_service.dart';
 import 'package:edutrack_family/features/location/data/location_models.dart';
 import 'package:edutrack_family/features/location/data/location_repository.dart';
 import 'package:edutrack_family/firebase_options.dart';
@@ -227,11 +228,12 @@ class _TrackingTaskHandler extends TaskHandler {
             type: type,
             ts: point.ts,
           );
-          // Push a los padres vía cola (la CF resuelve los uids)
-          final student = await _parentIds(sid);
-          if (student.isNotEmpty) {
-            await _queuePush(
-              targetUids: student,
+          // Push directo a los padres (vía el backend en Cloudflare)
+          final parents = await _parentIds(sid);
+          if (parents.isNotEmpty) {
+            await PushQueueService.instance.sendToUids(
+              parents,
+              channelId: 'edutrack_urgent',
               title: isInside
                   ? '📍 Llegó a ${zone.name}'
                   : '📍 Salió de ${zone.name}',
@@ -258,21 +260,6 @@ class _TrackingTaskHandler extends TaskHandler {
     } catch (_) {
       return const [];
     }
-  }
-
-  Future<void> _queuePush({
-    required List<String> targetUids,
-    required String title,
-    required String body,
-  }) async {
-    await FirebaseFirestore.instance.collection('push_queue').add({
-      'targetUids': targetUids,
-      'title': title,
-      'body': body,
-      'data': const <String, String>{},
-      'processed': false,
-      'createdAt': DateTime.now().toIso8601String(),
-    });
   }
 
   // ── Buffer offline ───────────────────────────────────────────

@@ -6,7 +6,7 @@ Somos 5 personas. Para que todos podamos trabajar en paralelo sin pisarnos, el p
 
 | Zona | Carpetas | Qué incluye |
 |---|---|---|
-| **A — Núcleo, Auth y Familia** (líder) | `lib/app.dart`, `lib/core/**`, `lib/features/auth/`, `lib/features/family/`, `firestore.rules`, `storage.rules`, `functions/`, `.github/` | Router, base de datos, sync, autenticación, vinculación de hijos/profesores, reglas de seguridad |
+| **A — Núcleo, Auth y Familia** (líder) | `lib/app.dart`, `lib/core/**`, `lib/features/auth/`, `lib/features/family/`, `firestore.rules`, `storage.rules`, `workers/edutrack-api/`, `.github/` | Router, base de datos, sync, autenticación, vinculación de hijos/profesores, reglas de seguridad, backend (Cloudflare Workers) |
 | **B — Tareas y Evidencias** | `lib/core/features/admin/tasks/`, `lib/core/features/admin/evidence/`, `lib/core/features/student/tasks/`, `lib/core/providers/task_provider.dart` | CRUD de tareas, flujo de revisión (rechazar/reenviar/aceptar), fotos de evidencia |
 | **C — Eventos, Horario, Calendario y Stats** | `lib/core/features/admin/events/`, `lib/core/features/student/events/`, `lib/core/features/student/calendar/`, `lib/core/features/*/stats/`, `lib/core/providers/event_provider.dart`, `lib/core/providers/schedule_provider.dart`, `lib/core/providers/stats_provider.dart` | Eventos escolares, horario semanal (data-driven), calendario, estadísticas |
 | **D — Ubicación y Seguridad** | `lib/features/location/**`, `lib/features/safety/**` | Mapa de ubicación del hijo, zonas seguras, tracking, check-in "¿Estás bien?", pantalla de alarma sísmica |
@@ -41,7 +41,8 @@ flutter run                    # elige el emulador/dispositivo
 ```
 
 - **Sin Android/iOS a mano**: `flutter run -d windows` sirve para iterar UI — todo lo mobile-only (GPS, biometría, FCM, foreground service) está detrás de guards de plataforma y no rompe el arranque en desktop.
-- **Firebase**: ya viene configurado (`firebase_options.dart`, `google-services.json`). Si necesitas desplegar reglas/functions: `firebase deploy --only firestore:rules` (pide acceso al proyecto `edutrack-family` al líder).
+- **Firebase**: ya viene configurado (`firebase_options.dart`, `google-services.json`), plan **Spark (gratis, sin tarjeta)**. Si necesitas desplegar reglas: `firebase deploy --only firestore:rules` (pide acceso al proyecto `edutrack-family` al líder).
+- **Backend**: no hay Cloud Functions — la lógica de servidor vive en `workers/edutrack-api/` sobre Cloudflare Workers (gratis, sin tarjeta). Solo el líder (zona A) despliega cambios ahí; ver `workers/edutrack-api/README.md`. Nunca actives el plan Blaze de Firebase — el equipo decidió evitarlo aunque sea gratis dentro de cuota, para no tener que agregar ninguna tarjeta al proyecto.
 - **Firma de release Android**: cada dev genera su propio `android/key.properties` (no se versiona) — sin él, `flutter build apk --release` cae a la firma debug automáticamente, así que no bloquea el desarrollo diario.
 - **Tests**: `flutter test` corre modelos + base de datos (con `sqflite_common_ffi`, no necesita emulador) + utilidades de ubicación.
 

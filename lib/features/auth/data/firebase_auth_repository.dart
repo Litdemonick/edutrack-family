@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import 'package:edutrack_family/core/data/local/models/app_user_model.dart';
 import 'package:edutrack_family/core/firebase/firestore_paths.dart';
+import 'package:edutrack_family/core/services/api_client.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // FIREBASE AUTH REPOSITORY — EduTrack Family 2.0
@@ -33,7 +33,6 @@ class FirebaseAuthRepository {
 
   FirebaseAuth get _auth => FirebaseAuth.instance;
   FirebaseFirestore get _db => FirebaseFirestore.instance;
-  FirebaseFunctions get _functions => FirebaseFunctions.instance;
 
   bool _googleInitialized = false;
 
@@ -97,10 +96,10 @@ class FirebaseAuthRepository {
     }, SetOptions(merge: true));
 
     // Custom claim (rules lo leen como request.auth.token.role).
-    // Best-effort: si Functions aún no está desplegado (plan Blaze
-    // pendiente), las reglas caen al rol del doc users/{uid}.
+    // Best-effort: si el backend (Cloudflare Worker) aún no está
+    // desplegado, las reglas caen al rol del doc users/{uid}.
     try {
-      await _functions.httpsCallable('registerRole').call({'role': role.name});
+      await ApiClient.instance.call('/register-role', {'role': role.name});
       await user.getIdToken(true); // refrescar para que el claim aplique ya
     } catch (e) {
       debugPrint('[Auth] registerRole no disponible (se reintenta luego): $e');
@@ -123,8 +122,8 @@ class FirebaseAuthRepository {
         dobYear: dobYear,
       );
       return const AuthResult.success();
-    } on FirebaseFunctionsException catch (e) {
-      return AuthResult.fail(e.message ?? 'No se pudo asignar el rol.');
+    } on ApiException catch (e) {
+      return AuthResult.fail(e.message);
     } catch (e) {
       debugPrint('[Auth] completeProfile: $e');
       return const AuthResult.fail('No se pudo completar el perfil.');

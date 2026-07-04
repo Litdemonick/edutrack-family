@@ -11,7 +11,8 @@
 /lib/features/family/     @LIDER
 /lib/features/shells/     @LIDER
 /firestore.rules          @LIDER
-/functions/               @LIDER
+/storage.rules            @LIDER
+/workers/                 @LIDER
 /.github/                 @LIDER
 
 # Zona B — Tareas y Evidencias

@@ -49,10 +49,13 @@ android/key.properties
 *.jks
 *.keystore
 
-# Cloud Functions
-functions/node_modules/
-functions/*.log
-
 # Firebase CLI
 .firebase/
 firebase-debug.log
+
+# Cloudflare Worker (backend) — nunca subir la clave del service account
+workers/edutrack-api/node_modules/
+workers/edutrack-api/.dev.vars
+workers/edutrack-api/.wrangler/
+**/service-account*.json
+**/*-firebase-adminsdk-*.json
