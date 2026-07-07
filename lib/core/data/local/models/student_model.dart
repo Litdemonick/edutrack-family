@@ -12,6 +12,7 @@ import 'package:equatable/equatable.dart';
 class StudentProfile extends Equatable {
   final String id;
   final String name;
+  final String cedula;
   final String? grade;
   final int? avatarColor;
   final String? photoPath;
@@ -30,6 +31,7 @@ class StudentProfile extends Equatable {
   const StudentProfile({
     required this.id,
     required this.name,
+    this.cedula = '',
     this.grade,
     this.avatarColor,
     this.photoPath,
@@ -42,7 +44,7 @@ class StudentProfile extends Equatable {
     required this.updatedAt,
   });
 
-  /// Iniciales para el avatar (ej. "Yordan Pérez" → "YP")
+  /// Iniciales para el avatar (ej. "el estudiante Pérez" → "YP")
   String get initials {
     final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || parts.first.isEmpty) return '?';
@@ -52,6 +54,7 @@ class StudentProfile extends Equatable {
 
   StudentProfile copyWith({
     String? name,
+    String? cedula,
     String? grade,
     int? avatarColor,
     String? photoPath,
@@ -66,6 +69,7 @@ class StudentProfile extends Equatable {
     return StudentProfile(
       id: id,
       name: name ?? this.name,
+      cedula: cedula ?? this.cedula,
       grade: grade ?? this.grade,
       avatarColor: avatarColor ?? this.avatarColor,
       photoPath: photoPath ?? this.photoPath,
@@ -86,6 +90,7 @@ class StudentProfile extends Equatable {
   Map<String, dynamic> toMap() => {
         'id': id,
         'name': name,
+        'cedula': cedula,
         'grade': grade,
         'avatar_color': avatarColor,
         'photo_path': photoPath,
@@ -102,6 +107,7 @@ class StudentProfile extends Equatable {
     return StudentProfile(
       id: map['id'] as String,
       name: map['name'] as String,
+      cedula: map['cedula'] as String? ?? '',
       grade: map['grade'] as String?,
       avatarColor: map['avatar_color'] as int?,
       photoPath: map['photo_path'] as String?,
@@ -120,6 +126,7 @@ class StudentProfile extends Equatable {
 
   Map<String, dynamic> toFirestore() => {
         'name': name,
+        'cedula': cedula,
         'grade': grade,
         'avatarColor': avatarColor,
         'parentIds': parentIds,
@@ -143,6 +150,7 @@ class StudentProfile extends Equatable {
     return StudentProfile(
       id: id,
       name: (data['name'] ?? '') as String,
+      cedula: (data['cedula'] ?? '') as String,
       grade: data['grade'] as String?,
       avatarColor: data['avatarColor'] as int?,
       parentIds: _parseStringList(data['parentIds']),
@@ -175,6 +183,7 @@ class StudentProfile extends Equatable {
   List<Object?> get props => [
         id,
         name,
+        cedula,
         grade,
         avatarColor,
         photoPath,

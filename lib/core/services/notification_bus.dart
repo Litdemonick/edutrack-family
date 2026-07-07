@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/local/models/notification_model.dart';
@@ -39,6 +40,33 @@ class NotificationBus {
     return [...student.parentIds, ...student.teacherIds];
   }
 
+  /// Push (sin tocar la campana local de este dispositivo — eso ya lo
+  /// hizo el dispatch/dispatchFromProvider normal, que cubre al
+  /// estudiante + la campana propia del actor) a los adultos
+  /// vinculados a [studentId] que NO sean [actorUid]. Avisa al OTRO
+  /// adulto (padre si actuó el profesor, o viceversa) aunque tenga la
+  /// app cerrada/en segundo plano — con la app abierta, el eco de
+  /// Firestore en tiempo real (onTaskUpdated/onEventUpdated en
+  /// app.dart) completa la campana/notificación local con el mismo
+  /// mensaje.
+  static Future<void> pushToOtherGuardians({
+    required String studentId,
+    required String actorUid,
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    final guardians = await guardianTargets(studentId);
+    final others = guardians.where((uid) => uid != actorUid).toList();
+    if (others.isEmpty) return;
+    await PushQueueService.instance.sendToUids(
+      others,
+      title: title,
+      body: body,
+      data: payload != null ? {'payload': payload} : null,
+    );
+  }
+
   /// Dispara ambas capas simultáneamente:
   /// - Notificación interna (historial campana 🔔)
   /// - Push del sistema (local si app abierta, FCM si cerrada)
@@ -53,6 +81,12 @@ class NotificationBus {
   /// [eventId]       ID de evento (para navegar al tocar)
   /// [payload]       Payload para push del sistema ('task:id' | 'event:id')
   /// [targetUids]    FCM a usuarios concretos (uids; null = sin push remoto)
+  /// [actorTitle]/[actorBody] texto alternativo SOLO para la campana +
+  ///   notificación local de este mismo dispositivo (el actor) — si no
+  ///   se pasan, se usa [title]/[body] igual que antes. Existe porque
+  ///   [title]/[body] están redactados para el DESTINATARIO (ej. "tu
+  ///   padre/tutor agregó..."), y ese mismo texto sonaba raro en la
+  ///   propia campana de quien acaba de hacer la acción.
   /// Para usar en widgets (ConsumerWidget / ConsumerStatefulWidget)
   static Future<void> dispatch({
     required WidgetRef ref,
@@ -65,6 +99,8 @@ class NotificationBus {
     String? eventId,
     String? payload,
     List<String>? targetUids,
+    String? actorTitle,
+    String? actorBody,
   }) async {
     await _dispatch(
       read: ref.read,
@@ -77,6 +113,8 @@ class NotificationBus {
       eventId: eventId,
       payload: payload,
       targetUids: targetUids,
+      actorTitle: actorTitle,
+      actorBody: actorBody,
     );
   }
 
@@ -92,6 +130,8 @@ class NotificationBus {
     String? eventId,
     String? payload,
     List<String>? targetUids,
+    String? actorTitle,
+    String? actorBody,
   }) async {
     await _dispatch(
       read: ref.read,
@@ -104,6 +144,8 @@ class NotificationBus {
       eventId: eventId,
       payload: payload,
       targetUids: targetUids,
+      actorTitle: actorTitle,
+      actorBody: actorBody,
     );
   }
 
@@ -119,11 +161,22 @@ class NotificationBus {
     String? eventId,
     String? payload,
     List<String>? targetUids,
+    String? actorTitle,
+    String? actorBody,
   }) async {
+    // Texto para ESTE dispositivo (campana + notificación local si
+    // está en foreground) — el push remoto (capa 3, más abajo) sigue
+    // usando title/body tal cual, redactados para el destinatario.
+    final localTitle = actorTitle ?? title;
+    final localBody = actorBody ?? body;
+
+    debugPrint('[Notif] _dispatch → campana: "$localTitle" / "$localBody" '
+        '(taskId=$taskId eventId=$eventId targetUids=$targetUids)');
+
     // ── 1️⃣ Notificación interna (campana dentro de la app) ────
     read(notificationProvider.notifier).dispatchFull(
-      title: title,
-      body: body,
+      title: localTitle,
+      body: localBody,
       type: internalType,
       taskId: taskId,
       eventId: eventId,
@@ -135,17 +188,18 @@ class NotificationBus {
     if (AppLifecycleService.instance.isInForeground) {
       if (channel == NotificationChannel.urgent) {
         await NotificationUtils.showUrgentNotification(
-          title: title,
-          body: body,
+          title: localTitle,
+          body: localBody,
           requireConfirm: requireConfirm,
           payload: payload,
           taskId: taskId,
+          eventId: eventId,
           notifType: internalType,
         );
       } else if (channel == NotificationChannel.event) {
         await NotificationUtils.showEventNotification(
-          title: title,
-          body: body,
+          title: localTitle,
+          body: localBody,
           requireConfirm: requireConfirm,
           payload: payload,
           taskId: taskId,
@@ -154,10 +208,11 @@ class NotificationBus {
         );
       } else {
         await NotificationUtils.showSystemNotification(
-          title: title,
-          body: body,
+          title: localTitle,
+          body: localBody,
           payload: payload,
           taskId: taskId,
+          eventId: eventId,
           notifType: internalType,
         );
       }

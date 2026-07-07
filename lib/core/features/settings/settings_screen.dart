@@ -1,17 +1,27 @@
+import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:edutrack_family/core/constants/app_colors.dart';
 import 'package:edutrack_family/core/constants/app_routes.dart';
 import 'package:edutrack_family/core/constants/app_strings.dart';
+import 'package:edutrack_family/core/data/local/models/app_user_model.dart';
 import 'package:edutrack_family/core/providers/auth_provider.dart';
 import 'package:edutrack_family/core/providers/theme_provider.dart';
+import 'package:edutrack_family/core/responsive/breakpoints.dart';
 import 'package:edutrack_family/core/providers/notification_provider.dart';
 import 'package:edutrack_family/core/providers/notification_settings_provider.dart';
 import 'package:edutrack_family/core/providers/profile_photo_provider.dart';
 import 'package:edutrack_family/core/services/ringtone_service.dart';
 import 'package:edutrack_family/core/services/biometric_service.dart';
+import 'package:edutrack_family/core/utils/role_copy.dart';
+import 'package:edutrack_family/features/location/child/location_permission_help.dart';
+import 'package:edutrack_family/features/location/child/tracking_service.dart';
+import 'package:edutrack_family/features/location/data/location_repository.dart';
+import 'package:edutrack_family/features/auth/presentation/biometric_gate_screen.dart'
+    show biometricAvailableProvider;
 
 // ═══════════════════════════════════════════════════════════════
 // SETTINGS SCREEN — EduTrack Family
@@ -25,8 +35,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  bool _showChangePassword = false;
-
   @override
   Widget build(BuildContext context) {
     final user    = ref.watch(authProvider);
@@ -45,7 +53,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         centerTitle: true,
         elevation: 0,
       ),
-      body: ListView(
+      body: CenteredConstrained(
+        maxWidth: 960,
+        child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
           // ── Perfil ────────────────────────────────────────────
@@ -61,9 +71,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               children: [
                 _SettingsTile(
                   icon: Icons.family_restroom_rounded,
-                  title: 'Mi familia',
-                  subtitle:
-                      'Hijos, códigos de vinculación y profesores',
+                  title: user.isTeacher ? 'Mis estudiantes' : 'Mi familia',
+                  subtitle: RoleCopy.familySettingsSubtitle(user.role),
                   isDark: isDark,
                   onTap: () => context.push(AppRoutes.family),
                 ),
@@ -72,37 +81,56 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             const SizedBox(height: 20),
           ],
 
-          // ── Seguridad ─────────────────────────────────────────
-          _SectionHeader(title: 'Seguridad', isDark: isDark),
+          // ── Acceso y cuenta ────────────────────────────────────
+          // (método de login, vincular Google, contraseña — todo lo
+          // relacionado a "cómo entro" en una sola subzona)
+          _SectionHeader(title: 'Acceso y cuenta', isDark: isDark),
           _SettingsCard(
             isDark: isDark,
             children: [
-              _SettingsTile(
-                icon: Icons.lock_outline_rounded,
-                title: 'Cambiar contraseña',
-                subtitle: 'Actualiza tu contraseña de acceso',
-                isDark: isDark,
-                trailing: Icon(
-                  _showChangePassword
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.keyboard_arrow_down_rounded,
-                  color: AppColors.accentBlue,
-                ),
-                onTap: () => setState(
-                  () => _showChangePassword = !_showChangePassword,
-                ),
-              ),
-              if (_showChangePassword) ...[
-                const Divider(height: 1),
-                _ChangePasswordForm(isDark: isDark),
-              ],
-              const Divider(height: 1),
-              _BiometricToggleTile(isDark: isDark),
+              _LoginMethodTile(isDark: isDark),
               const Divider(height: 1),
               _LinkGoogleTile(isDark: isDark),
+              // Un solo camino para cambiar la contraseña: por correo.
+              // Antes había también un formulario en la app pidiendo
+              // la contraseña actual — dos botones para lo mismo es
+              // redundante y confuso; el flujo por correo además es
+              // el más seguro (Firebase invalida la sesión actual al
+              // cambiarla, forzando un login limpio con la nueva).
+              if (user.hasPasswordProvider) ...[
+                const Divider(height: 1),
+                _ResetPasswordEmailTile(isDark: isDark),
+              ],
             ],
           ),
           const SizedBox(height: 20),
+
+          // ── Bloqueo de la app ──────────────────────────────────
+          // (subzona separada: "cómo protejo el acceso una vez que
+          // ya inicié sesión" es un tema distinto de "cómo inicio
+          // sesión". Oculta por completo si el dispositivo no tiene
+          // huella/Windows Hello — no hay nada que configurar ahí.)
+          if (ref.watch(biometricAvailableProvider).valueOrNull ?? false) ...[
+            _SectionHeader(title: 'Bloqueo de la app', isDark: isDark),
+            _SettingsCard(
+              isDark: isDark,
+              children: [
+                _BiometricToggleTile(isDark: isDark),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+
+          // ── Ubicación (solo estudiante, solo Android — GPS es
+          // exclusivo de móvil) ─────────────────────────────────
+          if (user.isStudent && !kIsWeb && Platform.isAndroid) ...[
+            _SectionHeader(title: 'Ubicación', isDark: isDark),
+            _SettingsCard(
+              isDark: isDark,
+              children: [_LocationShareToggleTile(isDark: isDark, studentId: user.id)],
+            ),
+            const SizedBox(height: 20),
+          ],
 
           // ── Apariencia ────────────────────────────────────────
           _SectionHeader(title: 'Apariencia', isDark: isDark),
@@ -112,12 +140,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 20),
 
-          // ── Notificaciones ────────────────────────────────────
+          // ── Notificaciones: historial ──────────────────────────
           _SectionHeader(title: 'Notificaciones', isDark: isDark),
           _SettingsCard(
             isDark: isDark,
             children: [
-              // Historial
               _SettingsTile(
                 icon: Icons.notifications_outlined,
                 title: 'Historial de notificaciones',
@@ -145,8 +172,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     : null,
                 onTap: () => context.push(AppRoutes.notifications),
               ),
-              const Divider(height: 1),
+            ],
+          ),
+          const SizedBox(height: 20),
 
+          // ── Sonido y vibración (subzona aparte: "cómo suena" es
+          // distinto de "qué se guardó") ─────────────────────────
+          _SectionHeader(title: 'Sonido y vibración', isDark: isDark),
+          _SettingsCard(
+            isDark: isDark,
+            children: [
               // Sonido — preview al activar
               _NotifToggleTile(
                 icon: Icons.volume_up_rounded,
@@ -159,26 +194,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   await RingtoneService.instance.play(uri: uri);
                 },
               ),
-              const Divider(height: 1),
-
-              // Tono de notificación (selector del sistema)
-              _RingtoneTile(isDark: isDark),
-              const Divider(height: 1),
-
-              // Vibración — vibra al activar
-              _NotifToggleTile(
-                icon: Icons.vibration_rounded,
-                title: 'Vibración',
-                subtitle: 'Vibrar al recibir notificaciones de vencimiento',
-                isDark: isDark,
-                provider: notifVibrationProvider,
-                onEnable: () async {
-                  final p = ref.read(notifVibrationPatternProvider);
-                  await RingtoneService.instance.vibrate(pattern: p);
-                },
-              ),
-              // Duración de vibración (solo visible cuando vibración está activa)
-              _VibrationPatternTile(isDark: isDark),
+              // Tono de notificación y Vibración: ambos usan un canal
+              // nativo (com.edutrack/ringtone, com.edutrack/vibrate)
+              // que SOLO existe en Android (ver ringtone_service.dart,
+              // _isAndroid) — en cualquier otra plataforma serían
+              // botones muertos, así que se ocultan por completo.
+              if (!kIsWeb && Platform.isAndroid) ...[
+                const Divider(height: 1),
+                _RingtoneTile(isDark: isDark),
+                const Divider(height: 1),
+                _NotifToggleTile(
+                  icon: Icons.vibration_rounded,
+                  title: 'Vibración',
+                  subtitle: 'Vibrar al recibir notificaciones de vencimiento',
+                  isDark: isDark,
+                  provider: notifVibrationProvider,
+                  onEnable: () async {
+                    final p = ref.read(notifVibrationPatternProvider);
+                    await RingtoneService.instance.vibrate(pattern: p);
+                  },
+                ),
+                // Duración de vibración (solo visible cuando vibración está activa)
+                _VibrationPatternTile(isDark: isDark),
+              ],
             ],
           ),
           const SizedBox(height: 20),
@@ -211,6 +249,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _LogoutButton(isDark: isDark),
           const SizedBox(height: 32),
         ],
+        ),
       ),
     );
   }
@@ -317,7 +356,7 @@ class _ProfileCard extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  (user.isAdmin as bool) ? 'Administrador' : 'Estudiante',
+                  (user.role as UserRole).label,
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 16,
@@ -353,7 +392,7 @@ class _ProfileCard extends ConsumerWidget {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              (user.isAdmin as bool) ? 'Admin' : 'Estudiante',
+              (user.role as UserRole).label,
               style: TextStyle(
                 fontFamily: 'Nunito',
                 fontSize: 11,
@@ -364,178 +403,6 @@ class _ProfileCard extends ConsumerWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// FORMULARIO CAMBIAR CONTRASEÑA
-// ─────────────────────────────────────────────────────────────
-class _ChangePasswordForm extends ConsumerStatefulWidget {
-  final bool isDark;
-  const _ChangePasswordForm({required this.isDark});
-
-  @override
-  ConsumerState<_ChangePasswordForm> createState() =>
-      _ChangePasswordFormState();
-}
-
-class _ChangePasswordFormState extends ConsumerState<_ChangePasswordForm> {
-  final _formKey      = GlobalKey<FormState>();
-  final _currentCtrl  = TextEditingController();
-  final _newCtrl      = TextEditingController();
-  final _confirmCtrl  = TextEditingController();
-  bool _obscureCurrent = true;
-  bool _obscureNew     = true;
-  bool _obscureConfirm = true;
-  bool _isLoading      = false;
-
-  @override
-  void dispose() {
-    _currentCtrl.dispose();
-    _newCtrl.dispose();
-    _confirmCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-    setState(() => _isLoading = true);
-
-    final result = await ref.read(authProvider.notifier).changePassword(
-          currentPassword: _currentCtrl.text.trim(),
-          newPassword:     _newCtrl.text.trim(),
-          confirmPassword: _confirmCtrl.text.trim(),
-        );
-
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(result.message),
-        backgroundColor: result.isSuccess
-            ? AppColors.statusGreen
-            : AppColors.statusRed,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-
-    if (result.isSuccess) {
-      _currentCtrl.clear();
-      _newCtrl.clear();
-      _confirmCtrl.clear();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            _PasswordField(
-              controller: _currentCtrl,
-              label: 'Contraseña actual',
-              obscure: _obscureCurrent,
-              onToggle: () =>
-                  setState(() => _obscureCurrent = !_obscureCurrent),
-              validator: (v) =>
-                  (v == null || v.isEmpty) ? 'Ingresa tu contraseña actual' : null,
-            ),
-            const SizedBox(height: 10),
-            _PasswordField(
-              controller: _newCtrl,
-              label: 'Nueva contraseña',
-              obscure: _obscureNew,
-              onToggle: () => setState(() => _obscureNew = !_obscureNew),
-              validator: (v) {
-                if (v == null || v.isEmpty) return 'Ingresa la nueva contraseña';
-                if (v.length < 6) return 'Mínimo 6 caracteres';
-                return null;
-              },
-            ),
-            const SizedBox(height: 10),
-            _PasswordField(
-              controller: _confirmCtrl,
-              label: 'Confirmar nueva contraseña',
-              obscure: _obscureConfirm,
-              onToggle: () =>
-                  setState(() => _obscureConfirm = !_obscureConfirm),
-              validator: (v) {
-                if (v == null || v.isEmpty) return 'Confirma la nueva contraseña';
-                if (v != _newCtrl.text) return 'Las contraseñas no coinciden';
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            // FIX: sin SizedBox de altura fija que corta el texto
-            ElevatedButton(
-              onPressed: _isLoading ? null : _submit,
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: _isLoading
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : const Text(
-                      'Guardar contraseña',
-                      style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PasswordField extends StatelessWidget {
-  final TextEditingController controller;
-  final String label;
-  final bool obscure;
-  final VoidCallback onToggle;
-  final String? Function(String?) validator;
-
-  const _PasswordField({
-    required this.controller,
-    required this.label,
-    required this.obscure,
-    required this.onToggle,
-    required this.validator,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      obscureText: obscure,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: const Icon(Icons.lock_outline_rounded, size: 18),
-        suffixIcon: IconButton(
-          icon: Icon(
-            obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-            size: 18,
-          ),
-          onPressed: onToggle,
-        ),
-        isDense: true,
-      ),
-      validator: validator,
     );
   }
 }
@@ -588,8 +455,159 @@ class _ThemeToggleTile extends ConsumerWidget {
 }
 
 // ─────────────────────────────────────────────────────────────
+// TOGGLE COMPARTIR UBICACIÓN (hijo) — apagarlo desde acá ahorra
+// batería sin tener que esperar a que el padre/tutor lo desactive.
+// Solo aparece si el padre/tutor ya activó "compartir ubicación" —
+// si nunca lo pidió, no hay nada que apagar acá.
+// ─────────────────────────────────────────────────────────────
+class _LocationShareToggleTile extends ConsumerStatefulWidget {
+  final bool isDark;
+  final String studentId;
+  const _LocationShareToggleTile({required this.isDark, required this.studentId});
+
+  @override
+  ConsumerState<_LocationShareToggleTile> createState() =>
+      _LocationShareToggleTileState();
+}
+
+class _LocationShareToggleTileState
+    extends ConsumerState<_LocationShareToggleTile> {
+  bool _busy = false;
+
+  Future<void> _toggle(bool wantOn) async {
+    setState(() => _busy = true);
+    try {
+      if (wantOn) {
+        final error = await TrackingService.instance.ensurePermissions();
+        if (error != null) {
+          // Se guarda en Firestore (no solo el diálogo de abajo) para
+          // que este mismo interruptor siga mostrando el motivo
+          // aunque el usuario cierre el diálogo sin resolverlo.
+          await LocationRepository.instance
+              .setPermissionError(widget.studentId, error);
+          if (mounted) {
+            await showLocationPermissionHelp(context, error,
+                retryLabel: 'Compartir ubicación');
+          }
+          return;
+        }
+        await LocationRepository.instance
+            .setPermissionError(widget.studentId, null);
+        await LocationRepository.instance
+            .setDeviceConfirmed(widget.studentId, true);
+        await TrackingService.instance.start(widget.studentId);
+      } else {
+        await TrackingService.instance.stop();
+        await LocationRepository.instance
+            .setDeviceConfirmed(widget.studentId, false);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<
+        ({bool enabledByParent, bool deviceConfirmed, String? permissionError})>(
+      stream: LocationRepository.instance.watchConsent(widget.studentId),
+      builder: (context, snap) {
+        final consent = snap.data;
+        final enabledByParent = consent?.enabledByParent ?? false;
+        final deviceConfirmed = consent?.deviceConfirmed ?? false;
+        final permissionError = consent?.permissionError;
+
+        // El padre/tutor nunca lo pidió — no hay nada que mostrar.
+        if (!enabledByParent) return const SizedBox.shrink();
+
+        return ListTile(
+          leading: Icon(
+            Icons.location_on_rounded,
+            color: permissionError != null
+                ? AppColors.statusRed
+                : deviceConfirmed
+                    ? AppColors.statusGreen
+                    : AppColors.grey,
+            size: 22,
+          ),
+          title: Text(
+            'Compartir ubicación',
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: widget.isDark ? Colors.white : AppColors.navyBlue,
+            ),
+          ),
+          subtitle: Text(
+            // Sin este caso, "Activo" se mostraba igual aunque en
+            // realidad no hubiera podido arrancar por falta de un
+            // permiso — el hijo no tenía ninguna pista del problema.
+            permissionError ??
+                (deviceConfirmed
+                    ? 'Activo — usa batería mientras esté encendido'
+                    : 'Apagado'),
+            style: TextStyle(
+              fontFamily: 'Nunito',
+              fontSize: 12,
+              color: permissionError != null
+                  ? AppColors.statusRed
+                  : (widget.isDark ? Colors.white54 : AppColors.grey),
+            ),
+          ),
+          trailing: _busy
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Nada vuelve a revisar el permiso solo cuando el
+                    // hijo ya fue a Ajustes y lo activó — el
+                    // coordinador solo reacciona a cambios en
+                    // Firestore, no a que el sistema operativo haya
+                    // cambiado de opinión. Sin este botón, había que
+                    // apagar y volver a prender el switch para forzar
+                    // un nuevo intento.
+                    if (permissionError != null)
+                      IconButton(
+                        tooltip: 'Ya lo activé, revisar de nuevo',
+                        icon: const Icon(Icons.refresh_rounded,
+                            color: AppColors.statusRed),
+                        onPressed: () => _toggle(true),
+                      ),
+                    Switch(
+                      value: deviceConfirmed,
+                      onChanged: _toggle,
+                      activeThumbColor: AppColors.statusGreen,
+                    ),
+                  ],
+                ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        );
+      },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // TOGGLE BIOMETRÍA (huella / Face ID)
 // ─────────────────────────────────────────────────────────────
+// Sin chequeo de disponibilidad propio: el padre (settings_screen.dart)
+// ya gatea esta tarjeta completa con biometricAvailableProvider antes
+// de construir este widget — repetirlo acá con un initState().then()
+// aparte solo causaba que la fila apareciera vacía un instante y
+// "saltara" al resolver, cada vez que se abría Ajustes.
+//
+// Estado LOCAL (no ref.watch(authProvider...)): biometricEnabled vive
+// en SharedPreferences, no en el SessionUser? de authProvider, así
+// que cambiarlo nunca disparaba una notificación de Riverpod — el
+// switch se quedaba visualmente pegado en su valor original sin
+// importar cuántas veces se tocara. La lectura inicial es síncrona
+// (SharedPreferences ya cargado), así que no reintroduce el bug del
+// "salto" que sí causaba el chequeo ASÍNCRONO de disponibilidad.
 class _BiometricToggleTile extends ConsumerStatefulWidget {
   final bool isDark;
   const _BiometricToggleTile({required this.isDark});
@@ -600,28 +618,23 @@ class _BiometricToggleTile extends ConsumerStatefulWidget {
 }
 
 class _BiometricToggleTileState extends ConsumerState<_BiometricToggleTile> {
-  bool _available = false;
+  late bool _enabled;
 
   @override
   void initState() {
     super.initState();
-    BiometricService.instance.isAvailable().then((v) {
-      if (mounted) setState(() => _available = v);
-    });
+    _enabled = ref.read(authProvider.notifier).biometricEnabled;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_available) return const SizedBox.shrink();
-    final enabled = ref.watch(
-        authProvider.select((_) =>
-            ref.read(authProvider.notifier).biometricEnabled));
-
+    final isWindows = !kIsWeb && Platform.isWindows;
     return ListTile(
-      leading:
-          const Icon(Icons.fingerprint, color: AppColors.accentBlue, size: 24),
+      leading: Icon(
+          isWindows ? Icons.password_rounded : Icons.fingerprint,
+          color: AppColors.accentBlue, size: 24),
       title: Text(
-        'Desbloqueo con huella',
+        isWindows ? 'Desbloqueo con Windows Hello' : 'Desbloqueo con huella',
         style: TextStyle(
           fontFamily: 'Poppins',
           fontSize: 14,
@@ -630,7 +643,9 @@ class _BiometricToggleTileState extends ConsumerState<_BiometricToggleTile> {
         ),
       ),
       subtitle: Text(
-        'Pide tu huella al abrir la app',
+        isWindows
+            ? 'Pide Windows Hello al abrir la app'
+            : 'Pide tu huella al abrir la app',
         style: TextStyle(
           fontFamily: 'Nunito',
           fontSize: 12,
@@ -638,21 +653,161 @@ class _BiometricToggleTileState extends ConsumerState<_BiometricToggleTile> {
         ),
       ),
       trailing: Switch(
-        value: enabled,
+        value: _enabled,
         onChanged: (v) async {
           if (v) {
             // Confirmar identidad antes de activar
-            final ok = await BiometricService.instance
-                .authenticate(reason: 'Confirma tu huella para activar');
+            final ok = await BiometricService.instance.authenticate(
+                reason: isWindows
+                    ? 'Confirma con Windows Hello para activar'
+                    : 'Confirma tu huella para activar');
             if (!ok) return;
           }
           await ref.read(authProvider.notifier).setBiometricEnabled(v);
-          if (mounted) setState(() {});
+          if (mounted) setState(() => _enabled = v);
         },
         activeThumbColor: AppColors.accentBlue,
         activeTrackColor: AppColors.accentBlue.withValues(alpha: 0.4),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// MÉTODO DE INICIO DE SESIÓN — indicador de solo lectura
+// ─────────────────────────────────────────────────────────────
+class _LoginMethodTile extends ConsumerWidget {
+  final bool isDark;
+  const _LoginMethodTile({required this.isDark});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider);
+    if (user == null) return const SizedBox.shrink();
+
+    // El estudiante entra por custom token (código de vinculación) —
+    // nunca tiene proveedor 'password' ni 'google.com', así que sin
+    // este caso especial siempre caía en el "else" y decía "Correo y
+    // contraseña" aunque nunca puso ninguna.
+    if (user.isStudent) {
+      return _SettingsTile(
+        icon: Icons.qr_code_2_rounded,
+        title: 'Método de inicio de sesión',
+        subtitle: 'Código de vinculación (cuenta estudiante)',
+        isDark: isDark,
+      );
+    }
+
+    final hasGoogle = user.hasGoogleLinked;
+    final hasPassword = user.hasPasswordProvider;
+    final label = hasGoogle && hasPassword
+        ? 'Google y correo/contraseña'
+        : hasGoogle
+            ? 'Google'
+            : 'Correo y contraseña';
+
+    return _SettingsTile(
+      icon: hasGoogle ? Icons.g_mobiledata_rounded : Icons.email_outlined,
+      title: 'Método de inicio de sesión',
+      subtitle: label,
+      isDark: isDark,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// RESTABLECER CONTRASEÑA POR CORREO
+// ─────────────────────────────────────────────────────────────
+class _ResetPasswordEmailTile extends ConsumerStatefulWidget {
+  final bool isDark;
+  const _ResetPasswordEmailTile({required this.isDark});
+
+  @override
+  ConsumerState<_ResetPasswordEmailTile> createState() =>
+      _ResetPasswordEmailTileState();
+}
+
+class _ResetPasswordEmailTileState
+    extends ConsumerState<_ResetPasswordEmailTile> {
+  bool _sending = false;
+  int _cooldown = 0;
+  Timer? _cooldownTimer;
+  Timer? _sessionPollTimer;
+  int _pollTicks = 0;
+
+  @override
+  void dispose() {
+    _cooldownTimer?.cancel();
+    _sessionPollTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final user = ref.read(authProvider);
+    if (user?.email == null || _sending || _cooldown > 0) return;
+    setState(() => _sending = true);
+    final result =
+        await ref.read(authProvider.notifier).sendPasswordReset(user!.email!);
+    if (!mounted) return;
+    setState(() => _sending = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(result.ok
+          ? 'Enlace enviado a ${user.email} ✓'
+          : result.error ?? 'No se pudo enviar el correo.'),
+      backgroundColor:
+          result.ok ? AppColors.statusGreen : AppColors.statusRed,
+      behavior: SnackBarBehavior.floating,
+    ));
+    if (result.ok) {
+      // Enfriamiento de 60s: evita spamear el envío (Firebase igual
+      // tiene su propio límite en el servidor, pero devolvería un
+      // error confuso en vez de esta cuenta regresiva clara).
+      setState(() => _cooldown = 60);
+      _cooldownTimer?.cancel();
+      _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+        if (!mounted) return t.cancel();
+        setState(() => _cooldown--);
+        if (_cooldown <= 0) t.cancel();
+      });
+      _startSessionPolling();
+    }
+  }
+
+  /// Tras enviar el enlace, revisa cada 5s (hasta 5 min) si la
+  /// contraseña ya se cambió — Firebase invalida el refresh token de
+  /// inmediato al completarse, así que validateSession() lo detecta
+  /// y cierra la sesión sin esperar a que el token viejo expire solo.
+  /// El router hace el resto (state==null → /login) apenas ocurra.
+  void _startSessionPolling() {
+    _sessionPollTimer?.cancel();
+    _pollTicks = 0;
+    _sessionPollTimer = Timer.periodic(const Duration(seconds: 5), (t) async {
+      _pollTicks++;
+      if (!mounted || _pollTicks > 60) {
+        t.cancel();
+        return;
+      }
+      await ref.read(authProvider.notifier).validateSession();
+      // Si la sesión se invalidó, validateSession() ya disparó el
+      // signOut y el router nos saca de Ajustes solo (state==null);
+      // el próximo tick de este mismo timer se cancela arriba por
+      // "!mounted" apenas el widget se desmonte.
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SettingsTile(
+      icon: Icons.mail_outline_rounded,
+      title: 'Restablecer por correo',
+      subtitle: _sending
+          ? 'Enviando...'
+          : _cooldown > 0
+              ? 'Puedes reenviar en $_cooldown s'
+              : '¿Olvidaste tu contraseña? Te enviamos un enlace',
+      isDark: widget.isDark,
+      onTap: (_sending || _cooldown > 0) ? null : _send,
     );
   }
 }
@@ -1051,20 +1206,60 @@ class _SettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Ventana ancha (Windows/Linux en la práctica) → look Fluent:
+    // borde fino en vez de sombra, filas separadas por línea en vez
+    // de una sola tarjeta flotante. Teléfono se queda con el
+    // Material de siempre.
+    final fluent = context.isMedium || context.isExpanded;
+    final borderColor = isDark ? Colors.white12 : Colors.black12;
+    final radius = fluent ? 8.0 : 16.0;
+
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E2E) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(radius),
+        border: fluent ? Border.all(color: borderColor) : null,
+        boxShadow: fluent
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
-      child: Column(children: children),
+      // Material (no un Container con color) es el ancestro que
+      // necesitan los ListTile internos para pintar su efecto de
+      // tinta al tocar — un DecoratedBox con color de fondo directo
+      // lo tapa (warning de Flutter: "ink splashes may be invisible").
+      child: Material(
+        color: isDark ? const Color(0xFF1E1E2E) : Colors.white,
+        borderRadius: BorderRadius.circular(radius),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: fluent && children.length > 1
+              ? _withDividers(children, borderColor)
+              : children,
+        ),
+      ),
     );
+  }
+
+  List<Widget> _withDividers(List<Widget> items, Color color) {
+    final out = <Widget>[];
+    for (var i = 0; i < items.length; i++) {
+      out.add(items[i]);
+      if (i != items.length - 1) {
+        out.add(Divider(
+          height: 1,
+          thickness: 1,
+          indent: 16,
+          endIndent: 16,
+          color: color,
+        ));
+      }
+    }
+    return out;
   }
 }
 

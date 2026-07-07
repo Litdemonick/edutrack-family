@@ -196,9 +196,24 @@ class AuthValidators {
     return null;
   }
 
+  /// Login: solo exige que no esté vacía. La fuerza de la contraseña
+  /// se valida al CREARLA (ver [newPassword]) — acá debe aceptar
+  /// cualquier contraseña ya existente, incluida una cambiada fuera
+  /// de la app (link de Firebase por correo) que no pase por este
+  /// validador en absoluto.
   static String? password(String? v) {
     if (v == null || v.isEmpty) return 'Escribe tu contraseña';
-    if (v.length < 6) return 'Mínimo 6 caracteres';
+    return null;
+  }
+
+  /// Al crear/elegir una contraseña nueva (registro): 8+ caracteres,
+  /// al menos 1 mayúscula, 1 minúscula y 1 número.
+  static String? newPassword(String? v) {
+    if (v == null || v.isEmpty) return 'Escribe tu contraseña';
+    if (v.length < 8) return 'Mínimo 8 caracteres';
+    if (!RegExp(r'[A-Z]').hasMatch(v)) return 'Agrega al menos una mayúscula';
+    if (!RegExp(r'[a-z]').hasMatch(v)) return 'Agrega al menos una minúscula';
+    if (!RegExp(r'[0-9]').hasMatch(v)) return 'Agrega al menos un número';
     return null;
   }
 

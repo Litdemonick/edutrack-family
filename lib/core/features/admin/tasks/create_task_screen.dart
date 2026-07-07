@@ -6,14 +6,18 @@ import 'package:edutrack_family/core/constants/app_colors.dart';
 import 'package:edutrack_family/core/constants/app_strings.dart';
 import 'package:edutrack_family/core/constants/utils/date_utils.dart';
 import 'package:edutrack_family/core/data/local/models/schedule_block_model.dart';
+import 'package:edutrack_family/core/providers/family_provider.dart';
 import 'package:edutrack_family/core/providers/schedule_provider.dart';
 import 'package:edutrack_family/core/providers/task_provider.dart';
+import 'package:edutrack_family/core/responsive/breakpoints.dart';
 import 'package:edutrack_family/core/services/camera_service.dart';
 import 'package:edutrack_family/core/shared/widgets/cached_local_image.dart';
+import 'package:edutrack_family/core/shared/widgets/no_student_gate.dart';
+import 'package:edutrack_family/core/utils/platform_caps.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // CREATE TASK SCREEN — EduTrack Family
-// Formulario para que el admin cree una nueva tarea de Yordan.
+// Formulario para que el admin cree una nueva tarea del estudiante activo.
 // ═══════════════════════════════════════════════════════════════
 
 class CreateTaskScreen extends ConsumerStatefulWidget {
@@ -63,6 +67,7 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
       locale: const Locale('es'),
+      builder: EduDateUtils.clampPickerTextScale,
     );
     if (picked == null || !mounted) return;
 
@@ -98,6 +103,7 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
     final pickedTime = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(_dueDate),
+      builder: EduDateUtils.clampPickerTextScale,
     );
     setState(() {
       final hour = pickedTime?.hour ?? _dueDate.hour;
@@ -143,7 +149,7 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Yordan tiene $_subject ese día a las:',
+                '${ref.read(activeStudentProvider)?.name ?? "El estudiante"} tiene $_subject ese día a las:',
                 style: TextStyle(
                   fontFamily: 'Nunito',
                   fontSize: 13,
@@ -241,20 +247,21 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: AppColors.accentBlue,
-                child: Icon(Icons.camera_alt_rounded, color: Colors.white),
+            if (PlatformCaps.hasCamera)
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: AppColors.accentBlue,
+                  child: Icon(Icons.camera_alt_rounded, color: Colors.white),
+                ),
+                title: const Text('Tomar foto'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  final path = await camera.takePhoto(taskId: tempId);
+                  if (path != null && mounted) {
+                    setState(() => _referenceImagePaths.add(path));
+                  }
+                },
               ),
-              title: const Text('Tomar foto'),
-              onTap: () async {
-                Navigator.of(ctx).pop();
-                final path = await camera.takePhoto(taskId: tempId);
-                if (path != null && mounted) {
-                  setState(() => _referenceImagePaths.add(path));
-                }
-              },
-            ),
             ListTile(
               leading: const CircleAvatar(
                 backgroundColor: AppColors.navyBlue,
@@ -310,6 +317,12 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
     final maxNotifDays = _maxNotifDays(_dueDate);
     final notifLocked = daysLeft <= 2;
 
+    // Sin ningún estudiante vinculado no hay a quién asignarle la
+    // tarea — bloquear con un mensaje claro en vez de dejar que
+    // "Guardar" no haga nada en silencio (createTask ya lo rechaza
+    // internamente sin estudiante activo).
+    final noStudents = ref.watch(linkedStudentsProvider).isEmpty;
+
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF12121E) : AppColors.background,
       appBar: AppBar(
@@ -322,14 +335,19 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
           style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
         ),
         actions: [
-          TextButton(
-            onPressed: _isSaving ? null : _save,
-            child: const Text('Guardar',
-                style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600)),
-          ),
+          if (!noStudents)
+            TextButton(
+              onPressed: _isSaving ? null : _save,
+              child: const Text('Guardar',
+                  style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600)),
+            ),
         ],
       ),
-      body: Form(
+      body: noStudents
+          ? const NoStudentGateBody()
+          : CenteredConstrained(
+        maxWidth: 640,
+        child: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -553,7 +571,7 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Adjunta hasta 12 fotos para que Yordan sepa cómo debe verse',
+                    'Adjunta hasta 12 fotos para que ${ref.read(activeStudentProvider)?.name ?? "el estudiante"} sepa cómo debe verse',
                     style: TextStyle(
                       fontFamily: 'Nunito',
                       fontSize: 12,
@@ -601,6 +619,7 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
             ),
             const SizedBox(height: 24),
           ],
+        ),
         ),
       ),
     );

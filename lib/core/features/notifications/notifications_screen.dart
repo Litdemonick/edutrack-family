@@ -8,7 +8,12 @@ import 'package:edutrack_family/core/data/local/models/notification_model.dart';
 import 'package:edutrack_family/core/data/local/repositories/task_repository.dart';
 import 'package:edutrack_family/core/data/local/repositories/event_repository.dart';
 import 'package:edutrack_family/core/providers/auth_provider.dart';
+import 'package:edutrack_family/core/providers/event_provider.dart';
 import 'package:edutrack_family/core/providers/notification_provider.dart';
+import 'package:edutrack_family/core/providers/schedule_provider.dart';
+import 'package:edutrack_family/core/providers/task_provider.dart';
+import 'package:edutrack_family/core/responsive/breakpoints.dart';
+import 'package:edutrack_family/core/services/sync_service.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // NOTIFICATIONS SCREEN — EduTrack Family
@@ -23,6 +28,8 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 }
 
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
+  bool _refreshing = false;
+
   @override
   void initState() {
     super.initState();
@@ -34,8 +41,36 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     });
   }
 
+  /// Sync manual e inmediato desde la propia campana — por si algo
+  /// nuevo ya sincronizó en segundo plano pero todavía no se refleja
+  /// aquí, sin depender de otra pantalla.
+  Future<void> _manualRefresh() async {
+    setState(() => _refreshing = true);
+    try {
+      await SyncService.instance.fullSync();
+      if (!mounted) return;
+      ref.read(taskProvider.notifier).loadTasks();
+      ref.read(eventProvider.notifier).loadEvents();
+      ref.read(scheduleProvider.notifier).load();
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Si llega una notificación nueva MIENTRAS esta pantalla ya está
+    // abierta (el usuario la está mirando en ese momento), se marca
+    // como leída sola — antes solo se marcaban las que ya existían al
+    // entrar a la pantalla (initState), así que una que llegaba
+    // después se quedaba marcada "no leída" aunque el usuario la
+    // estuviera viendo en pantalla en ese mismo instante.
+    ref.listen<List<InternalNotification>>(notificationProvider, (previous, next) {
+      if (next.any((n) => !n.isRead)) {
+        ref.read(notificationProvider.notifier).markAllRead();
+      }
+    });
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final notifications = ref.watch(notificationProvider);
 
@@ -49,10 +84,26 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         ),
         centerTitle: true,
         elevation: 0,
+        actions: [
+          IconButton(
+            onPressed: _refreshing ? null : _manualRefresh,
+            tooltip: 'Actualizar',
+            icon: _refreshing
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh_rounded),
+          ),
+        ],
       ),
-      body: notifications.isEmpty
-          ? _EmptyNotifications(isDark: isDark)
-          : _NotificationList(notifications: notifications, isDark: isDark),
+      body: CenteredConstrained(
+        maxWidth: 960,
+        child: notifications.isEmpty
+            ? _EmptyNotifications(isDark: isDark)
+            : _NotificationList(notifications: notifications, isDark: isDark),
+      ),
     );
   }
 }
@@ -218,6 +269,8 @@ class _NotificationTile extends ConsumerWidget {
                 'isAdmin': user?.isAdmin ?? false,
               });
             }
+          } else if (n.route != null && context.mounted) {
+            context.push(n.route!);
           }
         },
         child: Container(
@@ -372,6 +425,12 @@ class _NotificationTile extends ConsumerWidget {
       case NotificationType.eventDeleted:
       case NotificationType.eventReminder:
         return const Color(0xFF9C27B0);
+      case NotificationType.familyUpdate:
+        return const Color(0xFF3F51B5);
+      case NotificationType.seismicAlert:
+        return const Color(0xFF7A0C0C);
+      case NotificationType.wellnessCheck:
+        return const Color(0xFFFF7A45);
       case NotificationType.general:
         return AppColors.grey;
     }
@@ -403,6 +462,12 @@ class _NotificationTile extends ConsumerWidget {
         return Icons.photo_library_rounded;
       case NotificationType.deadline:
         return Icons.alarm_rounded;
+      case NotificationType.familyUpdate:
+        return Icons.link_rounded;
+      case NotificationType.seismicAlert:
+        return Icons.public_rounded;
+      case NotificationType.wellnessCheck:
+        return Icons.favorite_rounded;
       case NotificationType.general:
         return Icons.notifications_rounded;
     }

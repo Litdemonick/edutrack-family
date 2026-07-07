@@ -6,16 +6,19 @@ import 'package:edutrack_family/core/constants/app_colors.dart';
 import 'package:edutrack_family/core/constants/app_strings.dart';
 import 'package:edutrack_family/core/constants/utils/date_utils.dart';
 import 'package:edutrack_family/core/data/local/models/schedule_block_model.dart';
+import 'package:edutrack_family/core/providers/family_provider.dart';
 import 'package:edutrack_family/core/providers/schedule_provider.dart';
+import 'package:edutrack_family/core/responsive/breakpoints.dart';
 import 'package:edutrack_family/core/data/local/models/task_model.dart';
 import 'package:edutrack_family/core/providers/task_provider.dart';
 import 'package:edutrack_family/core/services/camera_service.dart';
 import 'package:edutrack_family/core/shared/widgets/confirmation_dialog.dart';
 import 'package:edutrack_family/core/shared/widgets/cached_local_image.dart';
+import 'package:edutrack_family/core/utils/platform_caps.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // EDIT TASK SCREEN — EduTrack Family
-// Formulario para editar una tarea existente de Yordan.
+// Formulario para editar una tarea existente del estudiante activo.
 // ═══════════════════════════════════════════════════════════════
 
 class EditTaskScreen extends ConsumerStatefulWidget {
@@ -83,6 +86,7 @@ class _EditTaskScreenState extends ConsumerState<EditTaskScreen> {
       firstDate: DateTime.now().subtract(const Duration(days: 30)),
       lastDate: DateTime.now().add(const Duration(days: 365)),
       locale: const Locale('es'),
+      builder: EduDateUtils.clampPickerTextScale,
     );
     if (picked == null || !mounted) return;
 
@@ -114,6 +118,7 @@ class _EditTaskScreenState extends ConsumerState<EditTaskScreen> {
     final pickedTime = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(_dueDate),
+      builder: EduDateUtils.clampPickerTextScale,
     );
 
     setState(() {
@@ -160,7 +165,7 @@ class _EditTaskScreenState extends ConsumerState<EditTaskScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Yordan tiene $_subject ese día a las:',
+                '${ref.read(activeStudentProvider)?.name ?? "El estudiante"} tiene $_subject ese día a las:',
                 style: TextStyle(
                   fontFamily: 'Nunito', fontSize: 13,
                   color: isDark ? Colors.white70 : AppColors.grey,
@@ -256,20 +261,21 @@ class _EditTaskScreenState extends ConsumerState<EditTaskScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: AppColors.accentBlue,
-                child: Icon(Icons.camera_alt_rounded, color: Colors.white),
+            if (PlatformCaps.hasCamera)
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: AppColors.accentBlue,
+                  child: Icon(Icons.camera_alt_rounded, color: Colors.white),
+                ),
+                title: const Text('Tomar foto'),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  final path = await camera.takePhoto(taskId: tempId);
+                  if (path != null && mounted) {
+                    setState(() => _referenceImagePaths.add(path));
+                  }
+                },
               ),
-              title: const Text('Tomar foto'),
-              onTap: () async {
-                Navigator.of(ctx).pop();
-                final path = await camera.takePhoto(taskId: tempId);
-                if (path != null && mounted) {
-                  setState(() => _referenceImagePaths.add(path));
-                }
-              },
-            ),
             ListTile(
               leading: const CircleAvatar(
                 backgroundColor: AppColors.navyBlue,
@@ -353,7 +359,9 @@ class _EditTaskScreenState extends ConsumerState<EditTaskScreen> {
           ),
         ],
       ),
-      body: Form(
+      body: CenteredConstrained(
+        maxWidth: 640,
+        child: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -564,7 +572,7 @@ class _EditTaskScreenState extends ConsumerState<EditTaskScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Adjunta hasta 12 fotos para que Yordan sepa cómo debe verse',
+                    'Adjunta hasta 12 fotos para que ${ref.read(activeStudentProvider)?.name ?? "el estudiante"} sepa cómo debe verse',
                     style: TextStyle(
                       fontFamily: 'Nunito',
                       fontSize: 12,
@@ -612,6 +620,7 @@ class _EditTaskScreenState extends ConsumerState<EditTaskScreen> {
             ),
             const SizedBox(height: 24),
           ],
+        ),
         ),
       ),
     );

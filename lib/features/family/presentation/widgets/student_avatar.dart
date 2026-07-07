@@ -1,12 +1,18 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:edutrack_family/core/constants/app_colors.dart';
 import 'package:edutrack_family/core/data/local/models/student_model.dart';
+import 'package:edutrack_family/core/providers/profile_photo_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // STUDENT AVATAR — círculo con foto, o iniciales sobre su color.
+// La foto sale de profilePhotoProvider (mismo sistema que Ajustes,
+// sincronizado vía el Worker/R2) — no del viejo campo
+// student.photoPath, que nunca tuvo una pantalla para configurarlo y
+// se quedó sin usar.
 // ═══════════════════════════════════════════════════════════════
 
 /// Paleta de colores de avatar para elegir al crear el perfil.
@@ -21,15 +27,15 @@ const List<Color> kAvatarColors = [
   Color(0xFF3F51B5), // índigo
 ];
 
-class StudentAvatar extends StatelessWidget {
+class StudentAvatar extends ConsumerWidget {
   final StudentProfile student;
   final double radius;
 
   const StudentAvatar({super.key, required this.student, this.radius = 22});
 
   @override
-  Widget build(BuildContext context) {
-    final photo = student.photoPath;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final photo = ref.watch(profilePhotoProvider(student.id)) ?? student.photoPath;
     if (photo != null && photo.isNotEmpty && File(photo).existsSync()) {
       return CircleAvatar(
         radius: radius,

@@ -352,6 +352,20 @@ class EduDateUtils {
   /// Retorna la fecha con hora 00:00:00 (inicio del día)
   static DateTime _startOfDay(DateTime date) =>
       DateTime(date.year, date.month, date.day);
+
+  /// `builder:` para showDatePicker/showTimePicker — limita el
+  /// textScale heredado del sistema. Sin esto, con el escalado de
+  /// pantalla típico de Windows (125%/150%), las columnas de ancho
+  /// fijo del picker nativo de Material (ej. el selector AM/PM)
+  /// desbordan (RenderFlex overflow) porque el texto crece pero el
+  /// contenedor no.
+  static Widget clampPickerTextScale(BuildContext context, Widget? child) {
+    final mq = MediaQuery.of(context);
+    return MediaQuery(
+      data: mq.copyWith(textScaler: mq.textScaler.clamp(maxScaleFactor: 1.2)),
+      child: child!,
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────

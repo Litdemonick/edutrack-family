@@ -153,18 +153,24 @@ class TaskRepository {
 
     final paths = photoPaths ?? (photoPath != null ? [photoPath] : []);
     final now = DateTime.now();
+    // Si el estudiante no escribe nada, el mensaje del Historial (y el
+    // comentario que ve el padre/tutor o profesor en Revisión) queda
+    // vacío en vez de mostrar algo — mejor un mensaje por defecto que
+    // una burbuja sin texto.
+    final noteText =
+        (note != null && note.trim().isNotEmpty) ? note.trim() : 'Evidencia enviada.';
     final history = List<ConversationEntry>.from(task.conversationHistory)
       ..add(ConversationEntry(
         author: 'student',
         type: 'resubmit',
-        text: note,
+        text: noteText,
         photoPaths: paths,
         timestamp: now,
       ));
     final updated = task.copyWith(
       status: TaskStatus.pendingReview,
       evidencePhotoPaths: paths,
-      completionNote: note,
+      completionNote: noteText,
       completedAt: now,
       updatedAt: now,
       conversationHistory: history,
@@ -176,17 +182,25 @@ class TaskRepository {
     final task = await getTaskById(id);
     if (task == null) return;
     final now = DateTime.now();
-    final history = List<ConversationEntry>.from(task.conversationHistory)
-      ..add(ConversationEntry(
+    // Al aprobar se reemplaza TODO el historial de idas y vueltas
+    // (mensajes + fotos de cada reenvío) por un único aviso — el
+    // caller (task_provider.dart) borra las fotos de evidencia Y de
+    // referencia en R2 en este mismo momento, así que ya no hay nada
+    // que esas rutas puedan seguir mostrando.
+    final history = [
+      ConversationEntry(
         author: 'system',
-        type: 'accept',
-        text: 'Admin aceptó la tarea.',
+        type: 'system',
+        text: 'Tarea completada — historial e imágenes limpiados.',
         timestamp: now,
-      ));
+      ),
+    ];
     final updated = task.copyWith(
       status: TaskStatus.completed,
       updatedAt: now,
       conversationHistory: history,
+      clearEvidenceImages: true,
+      clearReferenceImages: true,
     );
     await updateTask(updated);
   }
@@ -205,7 +219,7 @@ class TaskRepository {
         text: msg,
         timestamp: now,
       ));
-    // No sobreescribir completionNote (nota original de Yordan)
+    // No sobreescribir completionNote (nota original de el estudiante)
     final updated = task.copyWith(
       status: TaskStatus.pending,
       updatedAt: now,

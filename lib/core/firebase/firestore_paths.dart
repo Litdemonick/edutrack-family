@@ -58,6 +58,13 @@ class FirestorePaths {
   static String wellnessCheck(String studentId, String checkId) =>
       'students/$studentId/wellnessChecks/$checkId';
 
+  // ── Alerta sísmica (bitácora por estudiante, la escribe el Worker
+  // cada vez que manda push por un sismo) ─────────────────────
+  static String seismicAlertLogCollection(String studentId) =>
+      'students/$studentId/seismicAlertsLog';
+  static String seismicAlertLog(String studentId, String quakeId) =>
+      'students/$studentId/seismicAlertsLog/$quakeId';
+
   // ── Globales ────────────────────────────────────────────────
   static const String linkCodes = 'linkCodes';
   static String linkCode(String code) => 'linkCodes/$code';
@@ -72,6 +79,4 @@ class FirestorePaths {
   static String referenceStoragePath(
           String studentId, String taskId, String fileName) =>
       'reference/$studentId/$taskId/$fileName';
-  static String profilePhotoStoragePath(String uid, String fileName) =>
-      'profiles/$uid/$fileName';
 }

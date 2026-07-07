@@ -110,9 +110,19 @@ class _PermissionGateScreenState extends ConsumerState<PermissionGateScreen>
         height: double.infinity,
         decoration: const BoxDecoration(gradient: AppColors.gradientNavy),
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
+          // LayoutBuilder + SingleChildScrollView en vez de un Column
+          // fijo con Spacer(): en horizontal (poca altura) el ícono +
+          // título + 2 tarjetas de permiso + botón no entraban y
+          // desbordaba. Spacer() no funciona dentro de un scroll
+          // (necesita alto acotado), así que se reemplazó por un gap
+          // fijo — en pantallas altas se ve igual gracias al
+          // minHeight; en horizontal se puede deslizar en vez de romperse.
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 52),
@@ -168,7 +178,7 @@ class _PermissionGateScreenState extends ConsumerState<PermissionGateScreen>
                   ),
                 ],
 
-                const Spacer(),
+                const SizedBox(height: 28),
 
                 // ── Botón continuar ───────────────────────────────
                 SizedBox(
@@ -210,6 +220,8 @@ class _PermissionGateScreenState extends ConsumerState<PermissionGateScreen>
 
                 const SizedBox(height: 32),
               ],
+                ),
+              ),
             ),
           ),
         ),

@@ -20,6 +20,9 @@ enum NotificationType {
   eventReminder,
   evidenceUploaded,
   deadline,
+  familyUpdate,
+  seismicAlert,
+  wellnessCheck,
   general,
 }
 
@@ -52,6 +55,12 @@ extension NotificationTypeX on NotificationType {
         return 'Evidencia enviada';
       case NotificationType.deadline:
         return 'Vencimiento';
+      case NotificationType.familyUpdate:
+        return 'Familia';
+      case NotificationType.seismicAlert:
+        return 'Alerta sísmica';
+      case NotificationType.wellnessCheck:
+        return '¿Estás bien?';
       case NotificationType.general:
         return 'General';
     }
@@ -72,6 +81,9 @@ extension NotificationTypeX on NotificationType {
       case NotificationType.eventReminder:  return '🔔';
       case NotificationType.evidenceUploaded: return '📷';
       case NotificationType.deadline:       return '⚠️';
+      case NotificationType.familyUpdate:   return '🔗';
+      case NotificationType.seismicAlert:   return '🌍';
+      case NotificationType.wellnessCheck:  return '🧡';
       case NotificationType.general:        return '📢';
     }
   }
@@ -84,6 +96,10 @@ class InternalNotification {
   final NotificationType type;
   final String? taskId;
   final String? eventId;
+
+  /// Ruta a la que navegar al tocar cuando NO es de tarea/evento (ej.
+  /// cambios de vinculación de familia/profesor) — null = no navega.
+  final String? route;
   final DateTime createdAt;
   final bool isRead;
 
@@ -94,6 +110,7 @@ class InternalNotification {
     required this.type,
     this.taskId,
     this.eventId,
+    this.route,
     required this.createdAt,
     this.isRead = false,
   });
@@ -105,6 +122,7 @@ class InternalNotification {
         type: type,
         taskId: taskId,
         eventId: eventId,
+        route: route,
         createdAt: createdAt,
         isRead: isRead ?? this.isRead,
       );
@@ -116,6 +134,7 @@ class InternalNotification {
         'type': type.name,
         'taskId': taskId,
         'eventId': eventId,
+        'route': route,
         'createdAt': createdAt.toIso8601String(),
         'isRead': isRead,
       };
@@ -131,6 +150,7 @@ class InternalNotification {
       ),
       taskId: json['taskId'] as String?,
       eventId: json['eventId'] as String?,
+      route: json['route'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
       isRead: json['isRead'] as bool? ?? false,
     );

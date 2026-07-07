@@ -40,6 +40,7 @@ dependencies:
   # BASE DE DATOS LOCAL (SQLITE)
   # ─────────────────────────────────────────
   sqflite: ^2.4.2                 # Base de datos SQLite local (Android + iOS)
+  sqflite_common_ffi: ^2.3.6      # SQLite en Windows/Linux (sin canal de plataforma nativo)
   path: ^1.9.1                    # Utilidades para rutas de archivos
   path_provider: ^2.1.5           # Rutas del sistema de archivos del dispositivo
 
@@ -109,8 +110,13 @@ dependencies:
   collection: ^1.19.1             # Utilidades para listas y mapas (groupBy, sorted, etc.)
   flutter_slidable: ^3.1.2        # Deslizar para eliminar/editar items de lista
   flutter_image_compress: ^2.4.0
+  image: ^4.5.4                    # Recomprimir a JPEG en Windows/Linux (puro Dart, sin plugin nativo)
   share_plus: ^13.1.0
   http: ^1.2.2                    # Llamadas al backend en Cloudflare Workers (workers/edutrack-api)
+  window_manager: ^0.5.2
+  crypto: ^3.0.7
+  flutter_secure_storage: ^10.3.1
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -118,7 +124,6 @@ dev_dependencies:
 
   flutter_lints: ^6.0.0           # Reglas de análisis estático recomendadas
   riverpod_generator: ^2.6.2      # Generador de código para @riverpod annotations
-  sqflite_common_ffi: ^2.3.6      # SQLite en tests (Windows/CI, sin dispositivo)
   build_runner: ^2.4.15           # Runner de generación de código (riverpod_generator)
   flutter_launcher_icons: ^0.14.3 # Generar ícono de la app para Android e iOS
   flutter_native_splash: ^2.4.3   # Pantalla de splash nativa automática

@@ -6,7 +6,9 @@ import 'package:edutrack_family/core/constants/app_routes.dart';
 import 'package:edutrack_family/core/constants/app_strings.dart';
 import 'package:edutrack_family/core/constants/utils/date_utils.dart';
 import 'package:edutrack_family/core/data/local/models/event_model.dart';
+import 'package:edutrack_family/core/providers/auth_provider.dart';
 import 'package:edutrack_family/core/providers/event_provider.dart';
+import 'package:edutrack_family/core/shared/widgets/assigned_by_badge.dart';
 import 'package:edutrack_family/core/shared/widgets/confirmation_dialog.dart';
 import 'package:edutrack_family/core/shared/widgets/empty_state.dart';
 import 'package:edutrack_family/core/shared/widgets/loading_widget.dart';
@@ -75,6 +77,8 @@ class EventListAdmin extends ConsumerWidget {
                   ...upcoming.map((e) => _EventRow(
                         event: e,
                         isDark: isDark,
+                        isCreator: e.assignedBy == null ||
+                            e.assignedBy == ref.read(authProvider)?.uid,
                         onDelete: () => _delete(context, ref, e),
                       )),
                 ],
@@ -86,6 +90,8 @@ class EventListAdmin extends ConsumerWidget {
                   ...past.map((e) => _EventRow(
                         event: e,
                         isDark: isDark,
+                        isCreator: e.assignedBy == null ||
+                            e.assignedBy == ref.read(authProvider)?.uid,
                         onDelete: () => _delete(context, ref, e),
                       )),
                 ],
@@ -339,11 +345,13 @@ class _SectionHeader extends StatelessWidget {
 class _EventRow extends StatelessWidget {
   final EventModel event;
   final bool isDark;
+  final bool isCreator;
   final VoidCallback onDelete;
 
   const _EventRow({
     required this.event,
     required this.isDark,
+    required this.isCreator,
     required this.onDelete,
   });
 
@@ -399,15 +407,27 @@ class _EventRow extends StatelessWidget {
                 color: isDark ? Colors.white : AppColors.navyBlue,
               ),
             ),
-            subtitle: Text(
-              event.isAllDay
-                  ? '${event.type.label} • ${EduDateUtils.shortDateLabel(event.date)}'
-                  : '${event.type.label} • ${EduDateUtils.shortDateLabel(event.date)}  ${EduDateUtils.timeLabel(event.date)}',
-              style: TextStyle(
-                fontFamily: 'Nunito',
-                fontSize: 12,
-                color: isDark ? Colors.white38 : AppColors.grey,
-              ),
+            subtitle: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    event.isAllDay
+                        ? '${event.type.label} • ${EduDateUtils.shortDateLabel(event.date)}'
+                        : '${event.type.label} • ${EduDateUtils.shortDateLabel(event.date)}  ${EduDateUtils.timeLabel(event.date)}',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontSize: 12,
+                      color: isDark ? Colors.white38 : AppColors.grey,
+                    ),
+                  ),
+                ),
+                if (event.assignedByRole != null) ...[
+                  const SizedBox(width: 6),
+                  AssignedByBadge(
+                      assignedByRole: event.assignedByRole, compact: true),
+                ],
+              ],
             ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
@@ -533,26 +553,48 @@ class _EventRow extends StatelessWidget {
                 context.push(AppRoutes.eventView, extra: {'event': event, 'isAdmin': true});
               },
             ),
-            _SheetTile(
-              icon: Icons.edit_rounded,
-              label: 'Modificar',
-              color: AppColors.statusAmber,
-              isDark: isDark,
-              onTap: () {
-                Navigator.pop(context);
-                context.push(AppRoutes.adminEditEventPath(event.id), extra: event);
-              },
-            ),
-            _SheetTile(
-              icon: Icons.delete_outline_rounded,
-              label: 'Eliminar',
-              color: AppColors.statusRed,
-              isDark: isDark,
-              onTap: () {
-                Navigator.pop(context);
-                onDelete();
-              },
-            ),
+            if (isCreator) ...[
+              _SheetTile(
+                icon: Icons.edit_rounded,
+                label: 'Modificar',
+                color: AppColors.statusAmber,
+                isDark: isDark,
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push(AppRoutes.adminEditEventPath(event.id), extra: event);
+                },
+              ),
+              _SheetTile(
+                icon: Icons.delete_outline_rounded,
+                label: 'Eliminar',
+                color: AppColors.statusRed,
+                isDark: isDark,
+                onTap: () {
+                  Navigator.pop(context);
+                  onDelete();
+                },
+              ),
+            ] else
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(Icons.lock_outline_rounded,
+                        size: 16, color: isDark ? Colors.white54 : AppColors.grey),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Solo quien lo creó puede modificarlo o eliminarlo.',
+                        style: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontSize: 12,
+                          color: isDark ? Colors.white54 : AppColors.grey,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
         ),

@@ -67,7 +67,7 @@ class AppStrings {
   // ─────────────────────────────────────────────────────────────
   // DASHBOARD ADMIN
   // ─────────────────────────────────────────────────────────────
-  static const String adminOverview = 'Resumen de Yordan';
+  static const String adminOverview = 'Resumen';
   static const String adminPendingAlert = 'Tareas sin hacer';
   static const String adminNoPending = 'Todo al día ✓';
   static const String adminAddTask = 'Agregar tarea';
@@ -242,7 +242,8 @@ class AppStrings {
   // ─────────────────────────────────────────────────────────────
   static const String notifTaskDue = '⚠ Tarea próxima a vencer';
   static const String notifTaskOverdue = '🔴 ¡Tarea vencida!';
-  static const String notifTaskNotDone = '📌 Yordan no ha completado una tarea';
+  static String notifTaskNotDone(String linkedPersonWord) =>
+      '📌 Tu $linkedPersonWord no ha completado una tarea';
   static const String notifReminderTitle = '📚 Recordatorio EduTrack';
 
   static String notifTaskDueBody(String taskName, int daysLeft) {
@@ -311,7 +312,7 @@ class AppStrings {
       'Las tareas completadas y eliminadas aparecerán aquí.';
   static const String emptyEvidenceTitle = 'Sin evidencias';
   static const String emptyEvidenceSub =
-      'Yordan no ha enviado fotos de evidencia todavía.';
+      'Todavía no se han enviado fotos de evidencia.';
 
   // ─────────────────────────────────────────────────────────────
   // EVIDENCIA / FOTOS
@@ -324,7 +325,7 @@ class AppStrings {
   static const String evidenceRetake = 'Tomar otra foto';
   static const String evidenceSave = 'Guardar evidencia';
   static const String evidenceSaved = '¡Evidencia guardada! ✓';
-  static const String evidenceViewTitle = 'Evidencia de Yordan';
+  static const String evidenceViewTitle = 'Evidencias entregadas';
   static const String evidenceCompletedOn = 'Completada el';
 
   // ─────────────────────────────────────────────────────────────

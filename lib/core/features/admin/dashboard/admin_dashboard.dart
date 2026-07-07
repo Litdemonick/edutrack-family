@@ -6,12 +6,16 @@ import 'package:go_router/go_router.dart';
 import 'package:edutrack_family/core/constants/app_colors.dart';
 import 'package:edutrack_family/core/constants/app_routes.dart';
 import 'package:edutrack_family/core/constants/utils/date_utils.dart';
+import 'package:edutrack_family/core/data/local/models/app_user_model.dart';
 import 'package:edutrack_family/core/data/local/models/task_model.dart';
 import 'package:edutrack_family/core/providers/auth_provider.dart';
+import 'package:edutrack_family/core/providers/family_provider.dart';
 import 'package:edutrack_family/core/providers/notification_provider.dart';
 import 'package:edutrack_family/core/providers/profile_photo_provider.dart';
 import 'package:edutrack_family/core/providers/task_provider.dart';
+import 'package:edutrack_family/core/responsive/breakpoints.dart';
 import 'package:edutrack_family/core/shared/widgets/loading_widget.dart';
+import 'package:edutrack_family/core/utils/role_copy.dart';
 import 'package:edutrack_family/core/shared/widgets/animated_bell_icon.dart';
 import 'package:edutrack_family/core/features/admin/dashboard/widgets/stats_card.dart';
 import 'package:edutrack_family/core/features/student/dashboard/widgets/traffic_light_badge.dart';
@@ -19,7 +23,7 @@ import 'package:edutrack_family/features/family/presentation/widgets/student_sel
 
 // ═══════════════════════════════════════════════════════════════
 // ADMIN DASHBOARD — EduTrack Family
-// Panel de control: estadísticas interactivas + estado de Yordan.
+// Panel de control: estadísticas interactivas + estado del estudiante activo.
 // ═══════════════════════════════════════════════════════════════
 
 class AdminDashboard extends ConsumerWidget {
@@ -32,6 +36,8 @@ class AdminDashboard extends ConsumerWidget {
     final user = ref.watch(authProvider);
     final tasksAsync = ref.watch(taskProvider);
     final unread = ref.watch(unreadNotificationCountProvider);
+    final studentName = ref.watch(activeStudentProvider)?.name ??
+        RoleCopy.dashboardFallbackName(user?.role ?? UserRole.parent);
 
     return CustomScrollView(
       slivers: [
@@ -139,7 +145,7 @@ class AdminDashboard extends ConsumerWidget {
 
         // ── Contenido ─────────────────────────────────────────
         tasksAsync.when(
-          data: (tasks) => _buildContent(context, tasks, isDark),
+          data: (tasks) => _buildContent(context, tasks, isDark, studentName),
           loading: () => SliverToBoxAdapter(child: LoadingList()),
           error: (e, _) => SliverToBoxAdapter(
             child: Padding(
@@ -161,6 +167,7 @@ class AdminDashboard extends ConsumerWidget {
     BuildContext context,
     List<TaskModel> tasks,
     bool isDark,
+    String studentName,
   ) {
     final total = tasks.length;
     final completedList =
@@ -195,6 +202,7 @@ class AdminDashboard extends ConsumerWidget {
               count: review,
               isDark: isDark,
               onTap: onNavigateToReview ?? () {},
+              studentName: studentName,
             ),
           ),
 
@@ -221,87 +229,84 @@ class AdminDashboard extends ConsumerWidget {
                 total: total,
                 withEvidence: withEvidence,
                 isDark: isDark,
+                studentName: studentName,
               ),
               const SizedBox(height: 12),
 
-              // Row 1
-              Row(
+              // Tarjetas de estadística — siempre son exactamente 4, así
+              // que un crossAxisCount fijo (no maxCrossAxisExtent) las
+              // hace estirarse para llenar TODO el ancho disponible en
+              // vez de dejar columnas vacías en ventanas anchas (el
+              // grid calculaba más columnas de las que hay tarjetas).
+              GridView(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: context.isCompact ? 2 : 4,
+                  mainAxisExtent: 108,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                ),
                 children: [
-                  Expanded(
-                    child: StatsCard(
-                      label: 'Total',
-                      value: total,
+                  StatsCard(
+                    label: 'Total',
+                    value: total,
+                    icon: Icons.assignment_outlined,
+                    color: isDark ? AppColors.skyBlue : AppColors.navyBlue,
+                    isDark: isDark,
+                    onTap: () => _showDetailSheet(
+                      context,
+                      label: 'Todas las tareas',
                       icon: Icons.assignment_outlined,
                       color: isDark ? AppColors.skyBlue : AppColors.navyBlue,
+                      tasks: [...tasks]..sort(
+                          (a, b) => a.dueDate.compareTo(b.dueDate)),
                       isDark: isDark,
-                      onTap: () => _showDetailSheet(
-                        context,
-                        label: 'Todas las tareas',
-                        icon: Icons.assignment_outlined,
-                        color: isDark ? AppColors.skyBlue : AppColors.navyBlue,
-                        tasks: [...tasks]..sort(
-                            (a, b) => a.dueDate.compareTo(b.dueDate)),
-                        isDark: isDark,
-                      ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: StatsCard(
+                  StatsCard(
+                    label: 'Completadas',
+                    value: completed,
+                    icon: Icons.check_circle_outline_rounded,
+                    color: AppColors.statusGreen,
+                    isDark: isDark,
+                    onTap: () => _showDetailSheet(
+                      context,
                       label: 'Completadas',
-                      value: completed,
                       icon: Icons.check_circle_outline_rounded,
                       color: AppColors.statusGreen,
+                      tasks: completedList,
                       isDark: isDark,
-                      onTap: () => _showDetailSheet(
-                        context,
-                        label: 'Completadas',
-                        icon: Icons.check_circle_outline_rounded,
-                        color: AppColors.statusGreen,
-                        tasks: completedList,
-                        isDark: isDark,
-                      ),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              // Row 2
-              Row(
-                children: [
-                  Expanded(
-                    child: StatsCard(
+                  StatsCard(
+                    label: 'Vencen hoy',
+                    value: dueTodayList.length,
+                    icon: Icons.today_outlined,
+                    color: AppColors.statusAmber,
+                    isDark: isDark,
+                    onTap: () => _showDetailSheet(
+                      context,
                       label: 'Vencen hoy',
-                      value: dueTodayList.length,
                       icon: Icons.today_outlined,
                       color: AppColors.statusAmber,
+                      tasks: dueTodayList,
                       isDark: isDark,
-                      onTap: () => _showDetailSheet(
-                        context,
-                        label: 'Vencen hoy',
-                        icon: Icons.today_outlined,
-                        color: AppColors.statusAmber,
-                        tasks: dueTodayList,
-                        isDark: isDark,
-                      ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: StatsCard(
+                  StatsCard(
+                    label: 'Urgentes',
+                    value: urgent,
+                    icon: Icons.warning_amber_rounded,
+                    color: AppColors.statusRed,
+                    isDark: isDark,
+                    onTap: () => _showDetailSheet(
+                      context,
                       label: 'Urgentes',
-                      value: urgent,
                       icon: Icons.warning_amber_rounded,
                       color: AppColors.statusRed,
+                      tasks: urgentList,
                       isDark: isDark,
-                      onTap: () => _showDetailSheet(
-                        context,
-                        label: 'Urgentes',
-                        icon: Icons.warning_amber_rounded,
-                        color: AppColors.statusRed,
-                        tasks: urgentList,
-                        isDark: isDark,
-                      ),
                     ),
                   ),
                 ],
@@ -314,7 +319,7 @@ class AdminDashboard extends ConsumerWidget {
         if (total == 0)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 32, 16, 0),
-            child: _EmptyState(isDark: isDark),
+            child: _EmptyState(isDark: isDark, studentName: studentName),
           ),
 
         const SizedBox(height: 32),
@@ -611,21 +616,27 @@ class _ProgressCard extends StatelessWidget {
   final int total;
   final int withEvidence;
   final bool isDark;
+  final String studentName;
 
   const _ProgressCard({
     required this.completed,
     required this.total,
     required this.withEvidence,
     required this.isDark,
+    required this.studentName,
   });
 
+  // Habla de studentName (el hijo/a o estudiante), no de "t\u00fa" \u2014 quien
+  // ve este panel es el padre/tutor o profesor, nunca quien hace las
+  // tareas. "t\u00fa puedes" ten\u00eda sentido en el panel del propio
+  // estudiante (student/dashboard/widgets/today_summary.dart), no ac\u00e1.
   String _motivationalText(double progress) {
-    if (progress == 1.0) return '\u00a1Todo completado! \u{1F389}';
-    if (progress >= 0.75) return '\u00a1Casi lo logras! \u2728';
-    if (progress >= 0.5) return '\u00a1M\u00e1s de la mitad! \u{1F525}';
-    if (progress >= 0.25) return '\u00a1Vas por buen camino!';
-    if (progress > 0) return '\u00a1Buen comienzo! \u{1F4AA}';
-    return '\u00a1Vamos, t\u00fa puedes! \u{1F4AA}';
+    if (progress == 1.0) return '\u00a1$studentName complet\u00f3 todo! \u{1F389}';
+    if (progress >= 0.75) return '\u00a1$studentName ya casi termina! \u2728';
+    if (progress >= 0.5) return '\u00a1$studentName va por m\u00e1s de la mitad! \u{1F525}';
+    if (progress >= 0.25) return '$studentName va por buen camino';
+    if (progress > 0) return '\u00a1Buen comienzo de $studentName! \u{1F4AA}';
+    return '\u00a1\u00c1nimo, $studentName puede lograrlo! \u{1F4AA}';
   }
 
   @override
@@ -657,7 +668,7 @@ class _ProgressCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Progreso de Yordan',
+                  'Progreso de $studentName',
                   style: TextStyle(
                     fontFamily: 'Nunito',
                     fontSize: 12,
@@ -701,20 +712,24 @@ class _ProgressCard extends StatelessWidget {
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        _motivationalText(progress),
-                        style: const TextStyle(
-                          fontFamily: 'Nunito',
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _motivationalText(progress),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: 'Nunito',
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
@@ -819,11 +834,13 @@ class _ReviewBanner extends StatelessWidget {
   final int count;
   final bool isDark;
   final VoidCallback onTap;
+  final String studentName;
 
   const _ReviewBanner({
     required this.count,
     required this.isDark,
     required this.onTap,
+    required this.studentName,
   });
 
   @override
@@ -871,7 +888,7 @@ class _ReviewBanner extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'Yordan ${count == 1 ? "envió una tarea" : "envió tareas"} para que revises',
+                    '$studentName ${count == 1 ? "envió una tarea" : "envió tareas"} para que revises',
                     style: TextStyle(
                       fontFamily: 'Nunito',
                       fontSize: 11,
@@ -930,13 +947,15 @@ class _ProfileAvatar extends ConsumerWidget {
 
 class _EmptyState extends StatelessWidget {
   final bool isDark;
+  final String studentName;
 
-  const _EmptyState({required this.isDark});
+  const _EmptyState({required this.isDark, required this.studentName});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(28),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 28),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1C1C2E) : Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -947,37 +966,49 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         children: [
           Container(
-            width: 64,
-            height: 64,
+            width: 88,
+            height: 88,
             decoration: BoxDecoration(
               color: AppColors.navyBlue.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.assignment_outlined,
-              size: 32,
+              size: 44,
               color: isDark ? Colors.white38 : AppColors.navyBlue,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Text(
             'Sin tareas aún',
             style: TextStyle(
               fontFamily: 'Poppins',
-              fontSize: 16,
+              fontSize: 18,
               fontWeight: FontWeight.w600,
               color: isDark ? Colors.white70 : AppColors.navyBlue,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
-            'Crea la primera tarea para Yordan\ndesde la sección Tareas.',
+            'Crea la primera tarea para $studentName\ny aparecerá aquí para hacerle seguimiento.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: 'Nunito',
               fontSize: 13,
               color: isDark ? Colors.white38 : AppColors.grey,
               height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () => context.push(AppRoutes.adminCreateTask),
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text('Crear tarea'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.navyBlue,
+              foregroundColor: Colors.white,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
           ),
         ],

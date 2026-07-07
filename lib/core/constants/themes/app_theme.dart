@@ -86,7 +86,12 @@ class AppTheme {
           disabledForegroundColor: AppColors.grey,
           elevation: 2,
           shadowColor: AppColors.shadowMedium,
-          minimumSize: const Size(double.infinity, 52),
+          // Alto fijo, ancho al contenido — las pantallas que quieren
+          // un botón de ancho completo ya lo envuelven en
+          // SizedBox(width: double.infinity, ...) explícitamente; un
+          // mínimo infinito acá rompía botones chicos en diálogos,
+          // Wrap, etc. (texto descentrado / el botón se estira solo).
+          minimumSize: const Size(64, 52),
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -105,7 +110,7 @@ class AppTheme {
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.navyBlue,
           disabledForegroundColor: AppColors.grey,
-          minimumSize: const Size(double.infinity, 52),
+          minimumSize: const Size(64, 52),
           side: const BorderSide(color: AppColors.navyBlue, width: 1.5),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
@@ -244,13 +249,18 @@ class AppTheme {
       ),
 
       // ── FloatingActionButton ─────────────────────────────────
+      // Sin `shape` forzado acá: CircleBorder() global rompía los
+      // FloatingActionButton.extended (icono+texto) — el texto se
+      // salía del círculo. Los 2 FAB que sí quieren ser circulares
+      // (admin_home.dart, student_home.dart) ya lo declaran ellos
+      // mismos; el resto usa el stadium/rounded-square por defecto
+      // de Material 3, correcto para contenido icono+label.
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: AppColors.accentBlue,
         foregroundColor: Colors.white,
         elevation: 6,
         focusElevation: 8,
         hoverElevation: 8,
-        shape: CircleBorder(),
         iconSize: 26,
       ),
 
@@ -531,7 +541,7 @@ class AppTheme {
           disabledBackgroundColor: const Color(0xFF2A2A3E),
           disabledForegroundColor: Colors.white38,
           elevation: 2,
-          minimumSize: const Size(double.infinity, 52),
+          minimumSize: const Size(64, 52),
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: const TextStyle(
@@ -544,7 +554,7 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.skyBlue,
-          minimumSize: const Size(double.infinity, 52),
+          minimumSize: const Size(64, 52),
           side: const BorderSide(color: AppColors.accentBlue, width: 1.5),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -613,11 +623,11 @@ class AppTheme {
         elevation: 12,
         height: 68,
       ),
+      // Sin `shape` forzado acá — ver nota igual en el tema claro.
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: AppColors.accentBlue,
         foregroundColor: Colors.white,
         elevation: 6,
-        shape: CircleBorder(),
         iconSize: 26,
       ),
       chipTheme: ChipThemeData(

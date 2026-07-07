@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../firebase/firestore_paths.dart';
+import 'api_client.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // FCM SERVICE — EduTrack Family 2.0
@@ -67,15 +68,23 @@ class FcmService {
     }
   }
 
+  /// Pasa por el Worker (no escribe directo por SDK) porque reclamar
+  /// esta instalación para [uid] puede requerir borrar el registro de
+  /// OTRO uid que la tenía antes (mismo dispositivo, cuenta distinta
+  /// — ver /register-device) — las reglas de Firestore no dejan que
+  /// un usuario borre el documento de otro, solo el Worker con el
+  /// service account puede.
   Future<void> _saveToken(String uid, String token) async {
     final installId = await _installId();
-    await FirebaseFirestore.instance
-        .doc(FirestorePaths.userDevice(uid, installId))
-        .set({
-      'token': token,
-      'platform': defaultTargetPlatform.name,
-      'lastSeen': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    try {
+      await ApiClient.instance.call('/register-device', {
+        'installId': installId,
+        'token': token,
+        'platform': defaultTargetPlatform.name,
+      });
+    } catch (e) {
+      debugPrint('[FCM] register-device falló: $e');
+    }
   }
 
   /// Llamar al cerrar sesión: elimina el registro del dispositivo.

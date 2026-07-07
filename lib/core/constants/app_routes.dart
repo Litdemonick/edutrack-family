@@ -38,6 +38,11 @@ class AppRoutes {
   /// Gate biométrico (huella/Face ID) con sesión viva
   static const String biometricGate = '/biometric-gate';
 
+  /// Configuración OBLIGATORIA de huella/Windows Hello (una sola vez,
+  /// tras verificar el correo o completar el perfil) para padres/
+  /// profesores — luego se puede desactivar desde Ajustes.
+  static const String biometricSetup = '/biometric-setup';
+
   /// Gestión de familia: hijos, códigos, vínculos
   static const String family = '/family';
 
@@ -45,7 +50,7 @@ class AppRoutes {
   static const String locationMap = '/location-map';
 
   // ─────────────────────────────────────────────────────────────
-  // RUTAS DEL ESTUDIANTE (Yordan)
+  // RUTAS DEL ESTUDIANTE (el estudiante)
   // ─────────────────────────────────────────────────────────────
 
   /// Home del estudiante — dashboard principal
@@ -98,14 +103,14 @@ class AppRoutes {
   /// Ver historial completo (admin)
   static const String adminHistory = '/admin/history';
 
-  /// Ver evidencias de Yordan (admin)
+  /// Ver evidencias de el estudiante (admin)
   static const String adminEvidence = '/admin/evidence';
 
   /// Ver evidencia específica de una tarea (admin)
   /// Parámetro: :taskId
   static const String adminTaskEvidence = '/admin/evidence/:taskId';
 
-  /// Reporte / estadísticas de Yordan (admin)
+  /// Reporte / estadísticas de el estudiante (admin)
   static const String adminReport = '/admin/report';
 
   // ─────────────────────────────────────────────────────────────

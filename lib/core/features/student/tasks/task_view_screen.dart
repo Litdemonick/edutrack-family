@@ -7,14 +7,17 @@ import 'package:edutrack_family/core/constants/app_colors.dart';
 import 'package:edutrack_family/core/constants/app_routes.dart';
 import 'package:edutrack_family/core/constants/app_strings.dart';
 import 'package:edutrack_family/core/constants/utils/date_utils.dart';
+import 'package:edutrack_family/core/data/local/models/app_user_model.dart';
 import 'package:edutrack_family/core/data/local/models/task_model.dart';
 import 'package:edutrack_family/core/database/database_helper.dart';
+import 'package:edutrack_family/core/providers/auth_provider.dart';
 import 'package:edutrack_family/core/providers/task_provider.dart';
 import 'package:edutrack_family/core/services/evidence_image_service.dart';
 import 'package:edutrack_family/core/shared/widgets/confirmation_dialog.dart';
 import 'package:edutrack_family/core/features/student/dashboard/widgets/traffic_light_badge.dart';
 import 'package:edutrack_family/core/shared/widgets/cached_local_image.dart';
 import 'package:edutrack_family/core/shared/widgets/fullscreen_image_viewer.dart';
+import 'package:edutrack_family/core/utils/role_copy.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // TASK VIEW SCREEN — EduTrack Family
@@ -48,10 +51,15 @@ class _TaskViewScreenState extends ConsumerState<TaskViewScreen> {
 
     // Imágenes de referencia
     if (_task.hasReference) {
-      final needsRefresh = await _imagesNeedRefresh(_task.referenceImagePaths);
-      if (needsRefresh) {
+      final stale = await _imagesAreStale(_task.referenceImagePaths, _task.updatedAt);
+      if (stale) {
         // Forzar re-descarga desde Firestore (Admin editó o primer acceso)
-        final paths = await imgSvc.downloadImages(studentId: _task.studentId, taskId: _task.id, kind: 'reference');
+        final paths = await imgSvc.downloadImages(
+          studentId: _task.studentId,
+          taskId: _task.id,
+          kind: 'reference',
+          forceRefresh: true,
+        );
         if (paths.isNotEmpty) {
           _task = _task.copyWith(referenceImagePaths: paths);
           changed = true;
@@ -66,21 +74,82 @@ class _TaskViewScreenState extends ConsumerState<TaskViewScreen> {
       }
     }
 
-    // Evidencias
-    if (_task.hasEvidence) {
-      final needsRefresh = await _imagesNeedRefresh(_task.evidencePhotoPaths);
-      if (needsRefresh) {
-        final paths = await imgSvc.downloadImages(studentId: _task.studentId, taskId: _task.id, kind: 'evidence');
-        if (paths.isNotEmpty) {
-          _task = _task.copyWith(evidencePhotoPaths: paths);
-          changed = true;
-        } else {
-          final cached = await imgSvc.getLocalPaths(_task.id, 'evidence');
-          if (cached.isNotEmpty) {
-            _task = _task.copyWith(evidencePhotoPaths: cached);
-            changed = true;
+    // Evidencia ACTUAL — versionada por completedAt (ver
+    // EvidenceImageService/uploadImages). Con [version] cada carpeta
+    // es fija/inmutable, así que basta con "¿ya la tengo localmente?"
+    // antes de ir a la red.
+    if (_task.hasEvidence && _task.completedAt != null) {
+      final version = _task.completedAt!.millisecondsSinceEpoch.toString();
+      var paths = await imgSvc.getLocalPaths(_task.id, 'evidence', version: version);
+      if (paths.isEmpty) {
+        paths = await imgSvc.downloadImages(
+          studentId: _task.studentId,
+          taskId: _task.id,
+          kind: 'evidence',
+          version: version,
+        );
+      }
+      if (paths.isEmpty) {
+        // Legacy: tareas enviadas ANTES de este fix, subidas a la
+        // carpeta plana sin versión — se recuperan con el mecanismo
+        // viejo (comparando fecha del archivo contra completedAt).
+        final stale = await _imagesAreStale(_task.evidencePhotoPaths, _task.completedAt);
+        if (stale) {
+          paths = await imgSvc.downloadImages(
+            studentId: _task.studentId,
+            taskId: _task.id,
+            kind: 'evidence',
+            forceRefresh: true,
+          );
+          if (paths.isEmpty) {
+            paths = await imgSvc.getLocalPaths(_task.id, 'evidence');
           }
         }
+      }
+      if (paths.isNotEmpty && !_sameOrder(paths, _task.evidencePhotoPaths)) {
+        _task = _task.copyWith(evidencePhotoPaths: paths);
+        changed = true;
+      }
+    }
+
+    // Fotos del Historial — cada envío de tipo 'resubmit' ahora sube
+    // sus fotos a su PROPIA carpeta versionada (usa su timestamp),
+    // así que se pueden traer una por una — antes solo se podía
+    // recuperar la del envío más reciente, porque cada reenvío
+    // borraba y reemplazaba el mismo archivo en el servidor. Envíos
+    // de ANTES de este fix (sin carpeta versionada) simplemente no
+    // encuentran nada y quedan con el aviso de "reemplazada" — esos sí
+    // se perdieron para siempre, no hay forma de recuperarlos.
+    if (_task.hasEvidence && _task.conversationHistory.isNotEmpty) {
+      final history = List<ConversationEntry>.from(_task.conversationHistory);
+      var historyChanged = false;
+      for (var i = 0; i < history.length; i++) {
+        final entry = history[i];
+        if (entry.type != 'resubmit' || entry.photoPaths.isEmpty) continue;
+        final version = entry.timestamp.millisecondsSinceEpoch.toString();
+        var paths = await imgSvc.getLocalPaths(_task.id, 'evidence', version: version);
+        if (paths.isEmpty) {
+          paths = await imgSvc.downloadImages(
+            studentId: _task.studentId,
+            taskId: _task.id,
+            kind: 'evidence',
+            version: version,
+          );
+        }
+        if (paths.isNotEmpty && !_sameOrder(paths, entry.photoPaths)) {
+          history[i] = ConversationEntry(
+            author: entry.author,
+            type: entry.type,
+            text: entry.text,
+            photoPaths: paths,
+            timestamp: entry.timestamp,
+          );
+          historyChanged = true;
+        }
+      }
+      if (historyChanged) {
+        _task = _task.copyWith(conversationHistory: history);
+        changed = true;
       }
     }
 
@@ -94,16 +163,33 @@ class _TaskViewScreenState extends ConsumerState<TaskViewScreen> {
     }
   }
 
-  /// Devuelve true si se necesita descargar:
+  /// Devuelve true si hay que (re)descargar:
   ///   - No hay paths, O
-  ///   - Al menos un archivo no existe en el filesystem local
-  Future<bool> _imagesNeedRefresh(List<String> paths) async {
+  ///   - Al menos un archivo no existe en el filesystem local, O
+  ///   - [changedAt] es más reciente que el archivo local — el
+  ///     servidor reemplaza las fotos con el MISMO nombre en cada
+  ///     re-subida, así que "el archivo existe" no basta para saber
+  ///     si sigue siendo la versión vigente.
+  Future<bool> _imagesAreStale(List<String> paths, DateTime? changedAt) async {
     if (paths.isEmpty) return true;
     for (final p in paths) {
       if (p.startsWith('http')) continue;
-      if (!await File(p).exists()) return true;
+      final file = File(p);
+      if (!await file.exists()) return true;
+      if (changedAt != null) {
+        final stat = await file.stat();
+        if (stat.modified.isBefore(changedAt)) return true;
+      }
     }
-    return false; // todos los archivos existen
+    return false;
+  }
+
+  bool _sameOrder(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   @override
@@ -259,6 +345,19 @@ class _TaskViewScreenState extends ConsumerState<TaskViewScreen> {
                           value: _task.subject,
                           isDark: isDark,
                         ),
+                        if (_task.assignedByName != null &&
+                            _task.assignedByName!.isNotEmpty) ...[
+                          _Divider(isDark: isDark),
+                          _InfoRow(
+                            icon: Icons.person_outline_rounded,
+                            label: 'Creado por',
+                            value: _task.assignedByRole != null
+                                ? '${_task.assignedByName} '
+                                    '(${UserRoleExt.fromName(_task.assignedByRole).label})'
+                                : _task.assignedByName!,
+                            isDark: isDark,
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -287,81 +386,41 @@ class _TaskViewScreenState extends ConsumerState<TaskViewScreen> {
                     ),
                   ],
 
-                  // Imágenes de referencia
-                  if (_task.hasReference) ...[
-                    const SizedBox(height: 10),
-                    _InfoCard(
-                      isDark: isDark,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _SectionLabel(
-                            _task.referenceImagePaths.length == 1
-                                ? 'Imagen de referencia'
-                                : 'Imágenes de referencia (${_task.referenceImagePaths.length})',
-                            isDark: isDark,
-                          ),
-                          const SizedBox(height: 10),
+                  // Imágenes de referencia — siempre se muestra la
+                  // sección (aunque no haya ninguna) para que no
+                  // quede un hueco vacío sin explicación.
+                  const SizedBox(height: 10),
+                  _InfoCard(
+                    isDark: isDark,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _SectionLabel(
+                          _task.referenceImagePaths.length == 1
+                              ? 'Imagen de referencia'
+                              : _task.referenceImagePaths.isEmpty
+                                  ? 'Imágenes de referencia'
+                                  : 'Imágenes de referencia (${_task.referenceImagePaths.length})',
+                          isDark: isDark,
+                        ),
+                        const SizedBox(height: 10),
+                        if (_task.hasReference)
                           _ImageGrid(
                             paths: _task.referenceImagePaths,
                             isDark: isDark,
-                          ),
-                        ],
-                      ),
+                          )
+                        else
+                          const _NoImagePlaceholder(
+                              text: 'Aún sin imagen de referencia'),
+                      ],
                     ),
-                  ],
-
-                  // Nota del estudiante
-                  if (_task.completionNote != null && _task.completionNote!.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    _InfoCard(
-                      isDark: isDark,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _SectionLabel('Nota de Yordan', isDark: isDark),
-                          const SizedBox(height: 8),
-                          Text(
-                            _task.completionNote!,
-                            style: TextStyle(
-                              fontFamily: 'Nunito',
-                              fontSize: 14,
-                              height: 1.5,
-                              fontStyle: FontStyle.italic,
-                              color: isDark ? Colors.white70 : AppColors.grey,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-
-                  // Evidencia fotográfica
-                  if (_task.hasEvidence) ...[
-                    const SizedBox(height: 10),
-                    _InfoCard(
-                      isDark: isDark,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _SectionLabel(
-                            _task.evidencePhotoPaths.length == 1
-                                ? 'Evidencia fotográfica'
-                                : 'Evidencias (${_task.evidencePhotoPaths.length})',
-                            isDark: isDark,
-                          ),
-                          const SizedBox(height: 10),
-                          _ImageGrid(
-                            paths: _task.evidencePhotoPaths,
-                            isDark: isDark,
-                            borderColor: AppColors.statusGreen,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
 
                   // ── Historial de conversación ─────────────────
+                  // Cada mensaje muestra su propia foto (si tiene) —
+                  // ya no hay una sección aparte de "Evidencia
+                  // fotográfica" duplicando la del envío más reciente;
+                  // todo vive acá, en orden, mensaje + su imagen.
                   if (_task.conversationHistory.isNotEmpty) ...[
                     const SizedBox(height: 10),
                     _InfoCard(
@@ -371,13 +430,37 @@ class _TaskViewScreenState extends ConsumerState<TaskViewScreen> {
                         children: [
                           _SectionLabel('Historial', isDark: isDark),
                           const SizedBox(height: 8),
-                          for (final entry in _task.conversationHistory)
+                          for (int i = 0; i < _task.conversationHistory.length; i++)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 8),
                               child: _ConversationBubble(
-                                entry: entry,
+                                entry: _task.conversationHistory[i],
                                 isDark: isDark,
                               ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ] else if (_task.isCompleted || _task.isInReview) ...[
+                    const SizedBox(height: 10),
+                    _InfoCard(
+                      isDark: isDark,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _SectionLabel('Evidencia fotográfica', isDark: isDark),
+                          const SizedBox(height: 10),
+                          if (_task.hasEvidence)
+                            _ImageGrid(
+                              paths: _task.evidencePhotoPaths,
+                              isDark: isDark,
+                              borderColor: AppColors.statusGreen,
+                            )
+                          else
+                            _NoImagePlaceholder(
+                              text: _task.isCompleted
+                                  ? 'Completada sin imágenes'
+                                  : 'Sin imágenes de evidencia',
                             ),
                         ],
                       ),
@@ -403,25 +486,47 @@ class _TaskViewScreenState extends ConsumerState<TaskViewScreen> {
 
                   // ── Botones de acción ────────────────────────
                   if (widget.isAdmin) ...[
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.statusRed,
-                          side: const BorderSide(color: AppColors.statusRed),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                    if (_task.assignedBy == null ||
+                        _task.assignedBy == ref.watch(authProvider)?.uid)
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.statusRed,
+                            side: const BorderSide(color: AppColors.statusRed),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          onPressed: () => _confirmDelete(context),
+                          icon: const Icon(Icons.delete_outline_rounded),
+                          label: const Text(
+                            'Eliminar tarea',
+                            style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
                           ),
                         ),
-                        onPressed: () => _confirmDelete(context),
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        label: const Text(
-                          'Eliminar tarea',
-                          style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.lock_outline_rounded,
+                                size: 14, color: Colors.grey.shade600),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Solo quien la creó puede editarla o eliminarla',
+                              style: TextStyle(
+                                fontFamily: 'Nunito',
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
                   ] else if (!_task.isCompleted && !_task.isInReview) ...[
                     SizedBox(
                       width: double.infinity,
@@ -449,15 +554,16 @@ class _TaskViewScreenState extends ConsumerState<TaskViewScreen> {
                           color: const Color(0xFF7C4DFF).withValues(alpha: 0.35),
                         ),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.hourglass_top_rounded,
+                          const Icon(Icons.hourglass_top_rounded,
                               size: 18, color: Color(0xFF7C4DFF)),
-                          SizedBox(width: 8),
+                          const SizedBox(width: 8),
                           Text(
-                            'Esperando revisión del admin',
-                            style: TextStyle(
+                            'Esperando revisión de '
+                            '${RoleCopy.actorLabelForStudent(_task.assignedByRole)}',
+                            style: const TextStyle(
                               fontFamily: 'Poppins',
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -510,6 +616,45 @@ class _TaskViewScreenState extends ConsumerState<TaskViewScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────
+// SIN IMAGEN — reemplaza el hueco vacío cuando una sección de fotos
+// (referencia o evidencia) no tiene ninguna, en vez de omitirla en
+// silencio.
+// ─────────────────────────────────────────────────────────────
+class _NoImagePlaceholder extends StatelessWidget {
+  final String text;
+  const _NoImagePlaceholder({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white10 : AppColors.offWhite,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.white24 : AppColors.lightGrey,
+          style: BorderStyle.solid,
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.photo_camera_outlined, size: 18, color: AppColors.grey),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: const TextStyle(
+                fontFamily: 'Nunito', fontSize: 12, color: AppColors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // GRID DE IMÁGENES — tapping abre visor a pantalla completa
 // ─────────────────────────────────────────────────────────────
 class _ImageGrid extends StatelessWidget {
@@ -528,10 +673,16 @@ class _ImageGrid extends StatelessWidget {
         onTap: () => _openFullscreen(context, 0),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(10),
-          child: SizedBox(
-            height: 150,
+          child: Container(
+            height: 220,
             width: double.infinity,
-            child: _ImageTile(path: paths[0], isDark: isDark, borderColor: borderColor),
+            color: isDark ? Colors.white10 : AppColors.offWhite,
+            child: _ImageTile(
+              path: paths[0],
+              isDark: isDark,
+              borderColor: borderColor,
+              fit: BoxFit.contain,
+            ),
           ),
         ),
       );
@@ -567,17 +718,47 @@ class _ImageTile extends StatelessWidget {
   final String path;
   final bool isDark;
   final Color? borderColor;
+  final BoxFit fit;
 
-  const _ImageTile({required this.path, required this.isDark, this.borderColor});
+  const _ImageTile({
+    required this.path,
+    required this.isDark,
+    this.borderColor,
+    this.fit = BoxFit.cover,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (!path.startsWith('http')) {
       final file = File(path);
       if (!file.existsSync()) {
+        // Pasa solo con fotos de envíos VIEJOS en el Historial: cada
+        // reenvío reemplaza las fotos en el servidor (mismo nombre de
+        // archivo), así que una foto de un envío ya superado no se
+        // puede volver a descargar en un dispositivo que no la tomó —
+        // el archivo remoto ya no existe, no es que falle la descarga.
         return Container(
           color: isDark ? Colors.white10 : AppColors.offWhite,
-          child: const Icon(Icons.broken_image_outlined, color: AppColors.grey),
+          padding: const EdgeInsets.all(4),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.image_not_supported_outlined,
+                  color: AppColors.grey, size: 18),
+              const SizedBox(height: 4),
+              Text(
+                'Reemplazada\npor un envío\nmás reciente',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 9,
+                  height: 1.2,
+                  color: isDark ? Colors.white38 : AppColors.grey,
+                ),
+              ),
+            ],
+          ),
         );
       }
     }
@@ -585,7 +766,14 @@ class _ImageTile extends StatelessWidget {
       decoration: borderColor != null
           ? BoxDecoration(border: Border.all(color: borderColor!.withValues(alpha: 0.35), width: 1.5))
           : null,
-      child: CachedLocalImage(path: path, fit: BoxFit.cover),
+      child: LayoutBuilder(
+        builder: (context, constraints) => CachedLocalImage(
+          path: path,
+          fit: fit,
+          width: constraints.maxWidth.isFinite ? constraints.maxWidth : null,
+          height: constraints.maxHeight.isFinite ? constraints.maxHeight : null,
+        ),
+      ),
     );
   }
 }
@@ -787,7 +975,10 @@ class _ConversationBubble extends StatelessWidget {
   final ConversationEntry entry;
   final bool isDark;
 
-  const _ConversationBubble({required this.entry, required this.isDark});
+  const _ConversationBubble({
+    required this.entry,
+    required this.isDark,
+  });
 
   @override
   Widget build(BuildContext context) {

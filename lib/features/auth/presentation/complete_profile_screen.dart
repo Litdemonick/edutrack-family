@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:edutrack_family/core/constants/app_colors.dart';
+import 'package:edutrack_family/core/constants/app_routes.dart';
+import 'package:edutrack_family/core/constants/utils/date_utils.dart';
 import 'package:edutrack_family/core/data/local/models/app_user_model.dart';
 import 'package:edutrack_family/core/providers/auth_provider.dart';
 import 'widgets/auth_widgets.dart';
@@ -45,6 +48,7 @@ class _CompleteProfileScreenState
       lastDate: now,
       helpText: 'Tu fecha de nacimiento',
       locale: const Locale('es'),
+      builder: EduDateUtils.clampPickerTextScale,
     );
     if (picked != null) setState(() => _dob = picked);
   }
@@ -138,7 +142,14 @@ class _CompleteProfileScreenState
           ),
           const SizedBox(height: 8),
           TextButton(
-            onPressed: () => ref.read(authProvider.notifier).logout(),
+            onPressed: () async {
+              await ref.read(authProvider.notifier).logout();
+              // El estado ya estaba en null (perfil incompleto) antes
+              // de cerrar sesión, así que Riverpod no dispara una
+              // reconstrucción del router al volver a quedar en null
+              // — sin este go() explícito el botón no hacía nada.
+              if (context.mounted) context.go(AppRoutes.login);
+            },
             child: const Text('Usar otra cuenta'),
           ),
         ],

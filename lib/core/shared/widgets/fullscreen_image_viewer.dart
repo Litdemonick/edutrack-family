@@ -110,14 +110,19 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer>
     }
   }
 
-  void _showLocation() {
+  Future<void> _showLocation() async {
     final path = widget.paths[_current];
     if (path.startsWith('http')) {
       _snack('Imagen en la nube — sin ruta local.');
       return;
     }
     final dir = File(path).parent.path;
-    showModalBottomSheet(
+    // El SnackBar de confirmación se muestra DESPUÉS de cerrar la
+    // hoja modal (con el context del propio visor, que sí tiene su
+    // Scaffold) — mostrarlo desde dentro de la hoja quedaba oculto
+    // detrás del modal (visible "asomado" en Windows, invisible del
+    // todo en celular, porque el modal cubre toda la pantalla).
+    final copied = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) => SafeArea(
@@ -125,6 +130,7 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer>
         child: _LocationSheet(filePath: path, dir: dir),
       ),
     );
+    if (copied == true) _snack('📋 Ruta copiada');
   }
 
   void _snack(String msg) {
@@ -539,12 +545,7 @@ class _LocationSheet extends StatelessWidget {
             child: OutlinedButton.icon(
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: filePath));
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text('📋 Ruta copiada'),
-                  behavior: SnackBarBehavior.floating,
-                  duration: Duration(seconds: 2),
-                ));
+                Navigator.of(context).pop(true);
               },
               style: OutlinedButton.styleFrom(
                   shape: RoundedRectangleBorder(

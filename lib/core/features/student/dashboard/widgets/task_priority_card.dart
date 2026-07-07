@@ -6,6 +6,7 @@ import 'package:edutrack_family/core/constants/app_routes.dart';
 import 'package:edutrack_family/core/constants/utils/date_utils.dart';
 import 'package:edutrack_family/core/data/local/models/task_model.dart';
 import 'package:edutrack_family/core/features/student/dashboard/widgets/traffic_light_badge.dart';
+import 'package:edutrack_family/core/utils/role_copy.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // TASK PRIORITY CARD — EduTrack Family
@@ -284,7 +285,8 @@ class TaskPriorityCard extends ConsumerWidget {
             if (task.isInReview)
               _ActionTile(
                 icon: Icons.hourglass_top_rounded,
-                label: 'Esperando revisión del admin',
+                label: 'Esperando revisión de '
+                    '${RoleCopy.actorLabelForStudent(task.assignedByRole)}',
                 color: const Color(0xFF7C4DFF),
                 isDark: isDark,
                 onTap: () => Navigator.pop(context),

@@ -113,9 +113,15 @@ final _historicalTaskStatsProvider = FutureProvider<TaskStats?>((ref) async {
 
 final taskStatsProvider = Provider<TaskStats?>((ref) {
   final historical = ref.watch(_historicalTaskStatsProvider);
+  TaskStats? fallback() => ref.watch(taskProvider).whenOrNull(data: _compute);
+  // OJO: si _historicalTaskStatsProvider ya resolvió pero su valor es
+  // null (sin estudiante activo todavía, o tasksState aún no cargó la
+  // primera vez), antes se aceptaba ese null como resultado final sin
+  // intentar el respaldo de taskProvider — dejaba el spinner de stats
+  // girando para siempre en vez de asentarse en "sin datos".
   return historical.maybeWhen(
-    data: (stats) => stats,
-    orElse: () => ref.watch(taskProvider).whenOrNull(data: _compute),
+    data: (stats) => stats ?? fallback(),
+    orElse: fallback,
   );
 });
 

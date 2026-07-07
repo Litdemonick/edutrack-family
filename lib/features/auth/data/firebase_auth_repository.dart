@@ -5,45 +5,64 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import 'package:edutrack_family/core/data/local/models/app_user_model.dart';
 import 'package:edutrack_family/core/firebase/firestore_paths.dart';
+import 'package:edutrack_family/core/firebase/platform/firebase_backend.dart';
+import 'package:edutrack_family/core/firebase/rest/desktop_auth_session.dart';
 import 'package:edutrack_family/core/services/api_client.dart';
+import 'package:edutrack_family/features/auth/data/auth_gateway.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // FIREBASE AUTH REPOSITORY — EduTrack Family 2.0
-// Operaciones de autenticación real:
+// Implementación NATIVA de AuthGateway (Android/iOS/macOS/Web):
 //   email+password · Google Sign-In v7 · vinculación de cuentas ·
 //   reset · verificación · custom token (dispositivo del niño)
 //
-// El rol vive en un custom claim (lo pone la CF registerRole) y
-// se espeja en users/{uid} para la UI.
+// En Windows/Linux, `.instance` resuelve a DesktopAuthSession (REST
+// a Identity Toolkit) en vez de esta clase — ver
+// core/firebase/platform/firebase_backend.dart. Ningún llamador
+// (auth_provider.dart, pantallas) distingue cuál es cuál: ambas
+// implementan AuthGateway con la misma firma pública.
+//
+// El rol vive en un custom claim (lo pone el Worker /register-role)
+// y se espeja en users/{uid} para la UI.
 // ═══════════════════════════════════════════════════════════════
 
-/// Resultado de una operación de auth con mensaje en español.
-class AuthResult {
-  final bool ok;
-  final String? error;
-  const AuthResult.success()
-      : ok = true,
-        error = null;
-  const AuthResult.fail(this.error) : ok = false;
-}
-
-class FirebaseAuthRepository {
+class FirebaseAuthRepository implements AuthGateway {
   FirebaseAuthRepository._();
-  static final FirebaseAuthRepository instance = FirebaseAuthRepository._();
+  static final AuthGateway instance =
+      useDesktopRestBackend ? DesktopAuthSession() : FirebaseAuthRepository._();
 
   FirebaseAuth get _auth => FirebaseAuth.instance;
   FirebaseFirestore get _db => FirebaseFirestore.instance;
 
   bool _googleInitialized = false;
 
-  User? get currentUser => _auth.currentUser;
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
-  Stream<User?> get userChanges => _auth.userChanges();
+  AuthUser? _toAuthUser(User? user) {
+    if (user == null) return null;
+    return AuthUser(
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      photoUrl: user.photoURL,
+      emailVerified: user.emailVerified,
+      isAnonymous: user.isAnonymous,
+      providerIds: user.providerData.map((p) => p.providerId).toList(),
+    );
+  }
+
+  @override
+  AuthUser? get currentUser => _toAuthUser(_auth.currentUser);
+
+  @override
+  Stream<AuthUser?> get userChanges => _auth.userChanges().map(_toAuthUser);
+
+  @override
+  Future<String?> currentIdToken() async => _auth.currentUser?.getIdToken();
 
   // ─────────────────────────────────────────────────────────────
   // REGISTRO DE ADULTO (email + password)
   // ─────────────────────────────────────────────────────────────
 
+  @override
   Future<AuthResult> registerAdult({
     required String email,
     required String password,
@@ -107,6 +126,7 @@ class FirebaseAuthRepository {
   }
 
   /// Completa el perfil de un usuario ya autenticado (Google primer login).
+  @override
   Future<AuthResult> completeProfile({
     required UserRole role,
     required int dobYear,
@@ -134,6 +154,7 @@ class FirebaseAuthRepository {
   // LOGIN
   // ─────────────────────────────────────────────────────────────
 
+  @override
   Future<AuthResult> signInWithEmail(String email, String password) async {
     try {
       await _auth.signInWithEmailAndPassword(
@@ -146,6 +167,7 @@ class FirebaseAuthRepository {
 
   /// Google Sign-In v7. Devuelve además si es la primera vez
   /// (sin doc de perfil → hay que pasar por el gate de rol+edad).
+  @override
   Future<AuthResult> signInWithGoogle() async {
     try {
       final credential = await _googleCredential();
@@ -166,6 +188,7 @@ class FirebaseAuthRepository {
   }
 
   /// Vincula la cuenta actual (email) con Google.
+  @override
   Future<AuthResult> linkWithGoogle() async {
     final user = _auth.currentUser;
     if (user == null) return const AuthResult.fail('Sesión no válida');
@@ -186,10 +209,17 @@ class FirebaseAuthRepository {
     }
   }
 
+  // Cliente OAuth "type 3" (web) de google-services.json — necesario
+  // para que el idToken de Android traiga la audiencia que Firebase
+  // Auth espera (sin esto, google_sign_in v7 puede devolver un idToken
+  // nulo o inválido en Android).
+  static const _googleServerClientId =
+      '378454359271-9k1ldm7o1fnjusmgeklnotnnvbrhtmkq.apps.googleusercontent.com';
+
   Future<OAuthCredential?> _googleCredential() async {
     final signIn = GoogleSignIn.instance;
     if (!_googleInitialized) {
-      await signIn.initialize();
+      await signIn.initialize(serverClientId: _googleServerClientId);
       _googleInitialized = true;
     }
     final account = await signIn.authenticate();
@@ -199,9 +229,22 @@ class FirebaseAuthRepository {
   }
 
   /// Sesión del dispositivo del niño (custom token de redeemLinkCode).
+  @override
   Future<AuthResult> signInWithCustomToken(String token) async {
     try {
       await _auth.signInWithCustomToken(token);
+      return const AuthResult.success();
+    } on FirebaseAuthException catch (e) {
+      return AuthResult.fail(mapAuthError(e.code));
+    }
+  }
+
+  @override
+  Future<AuthResult> signInAnonymously() async {
+    try {
+      if (_auth.currentUser == null) {
+        await _auth.signInAnonymously();
+      }
       return const AuthResult.success();
     } on FirebaseAuthException catch (e) {
       return AuthResult.fail(mapAuthError(e.code));
@@ -212,6 +255,7 @@ class FirebaseAuthRepository {
   // GESTIÓN DE CUENTA
   // ─────────────────────────────────────────────────────────────
 
+  @override
   Future<AuthResult> sendPasswordReset(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email.trim());
@@ -221,10 +265,12 @@ class FirebaseAuthRepository {
     }
   }
 
+  @override
   Future<void> resendVerification() async {
     await _auth.currentUser?.sendEmailVerification();
   }
 
+  @override
   Future<bool> reloadAndCheckVerified() async {
     final user = _auth.currentUser;
     if (user == null) return false;
@@ -232,6 +278,7 @@ class FirebaseAuthRepository {
     return _auth.currentUser?.emailVerified ?? false;
   }
 
+  @override
   Future<AuthResult> changePassword({
     required String currentPassword,
     required String newPassword,
@@ -253,6 +300,7 @@ class FirebaseAuthRepository {
     }
   }
 
+  @override
   Future<void> signOut() async {
     try {
       if (_googleInitialized) await GoogleSignIn.instance.signOut();
@@ -260,14 +308,48 @@ class FirebaseAuthRepository {
     await _auth.signOut();
   }
 
+  @override
+  Future<void> validateSession() async {
+    // El SDK nativo ya escucha idTokenChanges/userChanges y maneja la
+    // revocación de sesión por su cuenta al refrescar — no hace falta
+    // forzar nada aquí (a diferencia de la sesión REST de escritorio).
+    final user = _auth.currentUser;
+    if (user == null) return;
+    try {
+      await user.getIdToken(true); // fuerza refresh; lanza si ya no es válida
+    } on FirebaseAuthException {
+      await signOut();
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────
   // PERFIL
   // ─────────────────────────────────────────────────────────────
 
-  Future<SessionUser?> loadProfile(User user) async {
+  @override
+  Future<SessionUser?> loadProfile(AuthUser authUser) async {
+    // AuthUser es un snapshot neutral; para leer el custom claim
+    // necesitamos el User vivo de firebase_auth (getIdTokenResult).
+    final user = _auth.currentUser;
+    if (user == null || user.uid != authUser.uid) return null;
     try {
       final token = await user.getIdTokenResult();
       final roleName = token.claims?['role'] as String?;
+
+      // Un estudiante (uid == studentId) no tiene doc en users/{uid}
+      // — su nombre (el que le puso el padre/tutor) vive en
+      // students/{uid}. Sin este caso especial, displayName quedaba
+      // vacío ("Hola, ") porque el custom token tampoco trae nombre.
+      if (roleName == 'student') {
+        final studentDoc = await _db.doc(FirestorePaths.student(user.uid)).get();
+        final studentData = studentDoc.data();
+        return SessionUser(
+          uid: user.uid,
+          role: UserRole.student,
+          displayName: studentData?['name'] as String? ?? '',
+          photoUrl: user.photoURL,
+        );
+      }
 
       final doc = await _db.doc(FirestorePaths.user(user.uid)).get();
       final data = doc.data();

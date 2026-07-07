@@ -3,14 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:edutrack_family/core/data/local/models/task_model.dart';
 import 'package:edutrack_family/core/data/local/models/notification_model.dart';
+import 'package:edutrack_family/core/data/local/models/app_user_model.dart';
 import 'package:edutrack_family/core/data/local/repositories/task_repository.dart';
+import 'package:edutrack_family/core/data/local/repositories/student_repository.dart';
 import 'package:edutrack_family/core/providers/auth_provider.dart';
 import 'package:edutrack_family/core/providers/connectivity_provider.dart';
 import 'package:edutrack_family/core/providers/family_provider.dart';
 import 'package:edutrack_family/core/services/evidence_image_service.dart';
 import 'package:edutrack_family/core/services/notification_bus.dart';
 import 'package:edutrack_family/core/services/notification_service.dart';
+import 'package:edutrack_family/core/services/push_queue_service.dart';
 import 'package:edutrack_family/core/services/sync_service.dart';
+import 'package:edutrack_family/core/firebase/firestore_service.dart';
+import 'package:edutrack_family/core/firebase/firestore_paths.dart';
+import 'package:edutrack_family/core/utils/role_copy.dart';
 import '../../main.dart';
 
 // ═══════════════════════════════════════════════════════════════
@@ -42,13 +48,31 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
   Future<void> loadTasks() async {
     final scope = _scopeStudentId;
     final hasData = state.hasValue;
+
+    // Si ya había tareas visibles y el scope viene momentáneamente
+    // null (p. ej. justo al reabrir la app desde una notificación,
+    // antes de que auth/estudiantes terminen de restaurarse), no
+    // reemplazar la lista por una vacía — eso es lo que causaba el
+    // "parpadeo" de tareas que desaparecían y volvían solas. En
+    // cuanto el scope real esté listo, el próximo loadTasks() (ya
+    // disparado por los mismos ref.listen) las vuelve a traer bien.
+    if (scope == null && hasData) return;
+
     if (!hasData) state = const AsyncValue.loading();
     try {
       final tasks = scope == null
           ? <TaskModel>[]
           : await _repo.getAllActiveTasks(studentId: scope);
-      state = AsyncValue.data(tasks);
       _checkOverdue(tasks);
+      // Mismo contenido exacto (mismos ids con el mismo updatedAt) que
+      // ya está en pantalla → no reemplazar el estado. Sin esto, cada
+      // sync (poll de escritorio, eco en tiempo real, etc.) emitía una
+      // lista "nueva" aunque nada hubiera cambiado, y pantallas
+      // derivadas (ej. Estadísticas, que anima sus barras desde 0 en
+      // cada valor nuevo) parpadeaban/reiniciaban su animación sin
+      // motivo real.
+      if (hasData && _sameTasks(state.value!, tasks)) return;
+      state = AsyncValue.data(tasks);
     } catch (e, st) {
       if (!hasData) {
         state = AsyncValue.error(e, st);
@@ -56,6 +80,16 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
         debugPrint('[TaskProvider] Error recargando tareas: $e');
       }
     }
+  }
+
+  bool _sameTasks(List<TaskModel> a, List<TaskModel> b) {
+    if (a.length != b.length) return false;
+    final byId = {for (final t in a) t.id: t.updatedAt};
+    for (final t in b) {
+      final prevUpdatedAt = byId[t.id];
+      if (prevUpdatedAt == null || prevUpdatedAt != t.updatedAt) return false;
+    }
+    return true;
   }
 
   void _checkOverdue(List<TaskModel> tasks) async {
@@ -93,6 +127,48 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
     }
   }
 
+  /// Avisa (solo push, sin tocar la campana propia del actor — eso ya
+  /// lo hizo el dispatch al estudiante) al OTRO adulto vinculado al
+  /// estudiante (el padre/tutor si actuó el profesor, o viceversa)
+  /// de que se creó/editó/eliminó una tarea — mencionando quién lo
+  /// hizo y de qué estudiante se trata. Como editar/eliminar una
+  /// tarea ya está restringido a quien la creó (ver firestore.rules),
+  /// [actorUid]/[actorRole] siempre coinciden con quien puede haber
+  /// hecho la acción.
+  Future<void> _notifyOtherAdults({
+    required String studentId,
+    required String actorUid,
+    required String? actorRole,
+    required String action,
+    required String taskId,
+  }) async {
+    final student = await StudentRepository.instance.getById(studentId);
+    if (student == null) return;
+
+    final otherParents = student.parentIds.where((u) => u != actorUid).toList();
+    final otherTeachers = student.teacherIds.where((u) => u != actorUid).toList();
+    final payload = 'task:$taskId';
+
+    if (otherParents.isNotEmpty) {
+      await PushQueueService.instance.sendToUids(
+        otherParents,
+        title: '📌 Tarea',
+        body: RoleCopy.otherAdultActionText(
+            actorRole, UserRole.parent, student.name, action),
+        data: {'payload': payload},
+      );
+    }
+    if (otherTeachers.isNotEmpty) {
+      await PushQueueService.instance.sendToUids(
+        otherTeachers,
+        title: '📌 Tarea',
+        body: RoleCopy.otherAdultActionText(
+            actorRole, UserRole.teacher, student.name, action),
+        data: {'payload': payload},
+      );
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────
   // CREAR (padre/profesor → estudiante concreto)
   // ─────────────────────────────────────────────────────────────
@@ -112,11 +188,14 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
       debugPrint('[TaskProvider] createTask sin estudiante activo');
       return;
     }
+    final creator = _ref.read(authProvider);
     final now = DateTime.now();
     final task = TaskModel(
       id: _uuid.v4(),
       studentId: sid,
-      assignedBy: _ref.read(authProvider)?.uid,
+      assignedBy: creator?.uid,
+      assignedByRole: creator?.role.name,
+      assignedByName: creator?.displayName,
       title: title,
       subject: subject,
       description: description,
@@ -137,15 +216,31 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
     await NotificationBus.dispatchFromProvider(
       ref: _ref,
       title: '📌 Nueva tarea asignada',
-      body: '"${task.title}" fue agregada — vence ${_shortDate(task.dueDate)}.',
+      body: '${RoleCopy.actorLabelForStudent(creator?.role.name)} agregó '
+          '"${task.title}" — vence ${_shortDate(task.dueDate)}.',
       internalType: NotificationType.taskAssigned,
       channel: NotificationChannel.system,
       taskId: task.id,
       payload: 'task:${task.id}',
       targetUids: [sid],
+      actorTitle: '📌 Tarea creada',
+      actorBody: 'Acabas de agregar "${task.title}" — vence '
+          '${_shortDate(task.dueDate)}.',
     );
 
-    // Imágenes de referencia → Firebase Storage
+    // Avisar al OTRO adulto vinculado (el que no la creó) — con la
+    // app abierta, el eco de Firestore en app.dart ya le completa la
+    // campana; esto cubre además su push con la app cerrada/en
+    // segundo plano.
+    await _notifyOtherAdults(
+      studentId: sid,
+      actorUid: creator?.uid ?? '',
+      actorRole: creator?.role.name,
+      action: 'agregó una nueva tarea "${task.title}"',
+      taskId: task.id,
+    );
+
+    // Imágenes de referencia → Cloudflare R2 (vía el Worker)
     if (task.referenceImagePaths.isNotEmpty) {
       await EvidenceImageService.instance.uploadImages(
         studentId: sid,
@@ -167,15 +262,27 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
       await _notifService.scheduleForTask(updated);
     }
 
+    final actor = _ref.read(authProvider);
     await NotificationBus.dispatchFromProvider(
       ref: _ref,
       title: '✏️ Tarea actualizada',
-      body: '"${updated.title}" fue modificada.',
+      body: '${RoleCopy.actorLabelForStudent(actor?.role.name)} modificó '
+          '"${updated.title}".',
       internalType: NotificationType.taskUpdated,
       channel: NotificationChannel.system,
       taskId: updated.id,
       payload: 'task:${updated.id}',
       targetUids: [updated.studentId],
+      actorTitle: '✏️ Tarea actualizada',
+      actorBody: 'Acabas de actualizar "${updated.title}".',
+    );
+
+    await _notifyOtherAdults(
+      studentId: updated.studentId,
+      actorUid: actor?.uid ?? '',
+      actorRole: actor?.role.name,
+      action: 'actualizó la tarea "${updated.title}"',
+      taskId: updated.id,
     );
 
     await loadTasks();
@@ -211,6 +318,10 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
         channel: NotificationChannel.system,
         taskId: task.id,
         payload: 'task:${task.id}',
+        // Antes esto solo quedaba en la campana del propio estudiante —
+        // padres/profesores nunca se enteraban si la tarea no pasaba
+        // por revisión (sin evidencia adjunta).
+        targetUids: await NotificationBus.guardianTargets(task.studentId),
       );
       final isOnline = _ref.read(connectivityProvider);
       if (isOnline) await _sync.pushTask(task);
@@ -234,20 +345,27 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
 
     final task = await _repo.getTaskById(taskId);
     if (task != null) {
-      // Evidencias → Firebase Storage
+      // Evidencias → Cloudflare R2 (vía el Worker). Versionada por
+      // completedAt (este envío específico) — así el Historial puede
+      // seguir mostrando las fotos de cada envío por separado, en vez
+      // de que cada reenvío borre las del anterior.
       if (task.evidencePhotoPaths.isNotEmpty) {
         await EvidenceImageService.instance.uploadImages(
           studentId: task.studentId,
           taskId: task.id,
           kind: 'evidence',
           localPaths: task.evidencePhotoPaths,
+          version: task.completedAt!.millisecondsSinceEpoch.toString(),
         );
       }
       await _sync.pushTask(task);
+      final assignerLabel = RoleCopy.assignedByLabel(task.assignedByRole);
       await NotificationBus.dispatchFromProvider(
         ref: _ref,
         title: '📤 Evidencia recibida',
-        body: '"${task.title}" fue enviada a revisión.',
+        body: assignerLabel != null
+            ? '"${task.title}" (tarea de $assignerLabel) fue enviada a revisión.'
+            : '"${task.title}" fue enviada a revisión.',
         internalType: NotificationType.evidenceUploaded,
         channel: NotificationChannel.system,
         taskId: task.id,
@@ -263,6 +381,14 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
 
     final task = await _repo.getTaskById(taskId);
     if (task != null) {
+      // Ya se aprobó — el historial de idas y vueltas ya se limpió en
+      // el repo; borrar también las fotos (evidencia, todas las
+      // versiones, Y referencia) en R2 para que no se acumulen
+      // indefinidamente en el storage remoto.
+      await EvidenceImageService.instance.deleteAllTaskImages(
+        studentId: task.studentId,
+        taskId: task.id,
+      );
       await NotificationBus.dispatchFromProvider(
         ref: _ref,
         title: '🎉 ¡Tarea aceptada!',
@@ -290,6 +416,33 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
     await loadTasks();
   }
 
+  /// Verifica contra Firestore (no el cache local, que puede tardar
+  /// unos segundos en enterarse de un borrado hecho desde otro
+  /// dispositivo) si la tarea sigue vigente. Se llama justo antes de
+  /// dejar completar una acción sobre ella (enviar evidencia,
+  /// aprobar/rechazar, editar) para no procesar algo sobre una tarea
+  /// que otro adulto ya eliminó mientras el sync todavía no llegaba.
+  /// Si ya no existe o está marcada eliminada, sincroniza el estado
+  /// local (para que desaparezca de la lista) y devuelve false.
+  Future<bool> isTaskStillActive(TaskModel task) async {
+    try {
+      final data = await FirestoreService.instance
+          .getRawDoc(FirestorePaths.task(task.studentId, task.id));
+      final isDeletedRemotely = data == null || data['is_deleted'] == true;
+      if (isDeletedRemotely) {
+        await _repo.deleteTask(task.id);
+        await loadTasks();
+        return false;
+      }
+      return true;
+    } catch (e) {
+      // Sin red o error transitorio: no bloquear al usuario por un
+      // problema de conectividad, dejar pasar la acción.
+      debugPrint('[TaskProvider] isTaskStillActive no se pudo verificar: $e');
+      return true;
+    }
+  }
+
   Future<void> deleteTask(String taskId) async {
     final task = await _repo.getTaskById(taskId);
     await _notifService.cancelForTask(taskId);
@@ -303,15 +456,33 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
     );
 
     if (task != null) {
+      // Tarea eliminada — ya no queda ningún Historial que mostrar,
+      // borrar también sus fotos (evidencia, todas las versiones, Y
+      // referencia) en R2 para no dejarlas huérfanas para siempre.
+      await EvidenceImageService.instance.deleteAllTaskImages(
+        studentId: task.studentId,
+        taskId: task.id,
+      );
+      final actor = _ref.read(authProvider);
       await NotificationBus.dispatchFromProvider(
         ref: _ref,
         title: '🗑️ Tarea eliminada',
-        body: '"${task.title}" fue eliminada del sistema.',
+        body: '${RoleCopy.actorLabelForStudent(actor?.role.name)} eliminó '
+            '"${task.title}" del sistema.',
         internalType: NotificationType.taskDeleted,
         channel: NotificationChannel.system,
         taskId: taskId,
         payload: 'task_deleted:$taskId',
         targetUids: [task.studentId],
+        actorTitle: '🗑️ Tarea eliminada',
+        actorBody: 'Acabas de eliminar "${task.title}".',
+      );
+      await _notifyOtherAdults(
+        studentId: task.studentId,
+        actorUid: actor?.uid ?? '',
+        actorRole: actor?.role.name,
+        action: 'eliminó la tarea "${task.title}"',
+        taskId: taskId,
       );
       final isOnline = _ref.read(connectivityProvider);
       if (isOnline) {

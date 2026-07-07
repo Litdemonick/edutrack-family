@@ -57,7 +57,32 @@ class NotificationNotifier
     );
   }
 
+  /// Ventana para considerar dos notificaciones "el mismo aviso" — el
+  /// eco de Firestore en tiempo real y el push remoto (ver
+  /// _notifyOtherAdults en task/event_provider.dart +
+  /// _listenForegroundPush en app.dart) pueden llegar casi al mismo
+  /// tiempo para el mismo cambio; sin esto, cualquier rol (padre,
+  /// profesor o estudiante) veía la campana duplicada.
+  static const _dedupeWindow = Duration(seconds: 20);
+
   void add(InternalNotification notification) {
+    final isDuplicate = state.any((n) {
+      // Además de la misma tarea/evento, debe ser el MISMO tipo de
+      // aviso — sin esto, dos notificaciones genuinamente distintas
+      // sobre la misma tarea que caen dentro de la ventana (ej.
+      // "rechazada" seguida poco después de "evidencia recibida" al
+      // reenviar rápido) se trataban como duplicado y la segunda se
+      // perdía en silencio.
+      if (n.type != notification.type) return false;
+      final sameTask =
+          notification.taskId != null && n.taskId == notification.taskId;
+      final sameEvent =
+          notification.eventId != null && n.eventId == notification.eventId;
+      if (!sameTask && !sameEvent) return false;
+      return DateTime.now().difference(n.createdAt) < _dedupeWindow;
+    });
+    if (isDuplicate) return;
+
     final updated = [notification, ...state];
     state = updated.length > 50 ? updated.take(50).toList() : updated;
     _save();
@@ -113,6 +138,7 @@ extension NotificationNotifierX on NotificationNotifier {
     required NotificationType type,
     String? taskId,
     String? eventId,
+    String? route,
   }) {
     add(InternalNotification(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -121,6 +147,7 @@ extension NotificationNotifierX on NotificationNotifier {
       type: type,
       taskId: taskId,
       eventId: eventId,
+      route: route,
       createdAt: DateTime.now(),
     ));
   }

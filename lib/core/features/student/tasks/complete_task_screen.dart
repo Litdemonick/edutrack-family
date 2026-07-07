@@ -12,11 +12,13 @@ import 'package:edutrack_family/core/providers/task_provider.dart';
 import 'package:edutrack_family/core/services/camera_service.dart';
 import 'package:edutrack_family/core/shared/widgets/cached_local_image.dart';
 import 'package:edutrack_family/core/shared/widgets/fullscreen_image_viewer.dart';
+import 'package:edutrack_family/core/utils/platform_caps.dart';
+import 'package:edutrack_family/core/utils/role_copy.dart';
 import 'package:edutrack_family/core/features/student/dashboard/widgets/traffic_light_badge.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // COMPLETE TASK SCREEN — EduTrack Family
-// Yordan marca tarea como completada: múltiples fotos + comentario.
+// el estudiante marca tarea como completada: múltiples fotos + comentario.
 // Máx 12 fotos. Mínimo 1 recomendado (no obligatorio).
 // ═══════════════════════════════════════════════════════════════
 
@@ -77,6 +79,25 @@ class _CompleteTaskScreenState extends ConsumerState<CompleteTaskScreen> {
     }
 
     setState(() => _isSaving = true);
+
+    // Antes de subir nada: confirmar contra Firestore que la tarea
+    // sigue vigente. El admin pudo haberla eliminado mientras el
+    // estudiante tenía esta pantalla abierta, y el sync local a veces
+    // tarda unos segundos en enterarse.
+    final stillActive =
+        await ref.read(taskProvider.notifier).isTaskStillActive(widget.task);
+    if (!mounted) return;
+    if (!stillActive) {
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Esta tarea ya fue eliminada.'),
+          backgroundColor: AppColors.statusRed,
+        ),
+      );
+      context.pop();
+      return;
+    }
 
     await ref.read(taskProvider.notifier).submitForReview(
           widget.task.id,
@@ -142,12 +163,15 @@ class _CompleteTaskScreenState extends ConsumerState<CompleteTaskScreen> {
 
             const SizedBox(height: 24),
 
-            // ── Referencia del admin ───────────────────────────
+            // ── Referencia del padre/tutor o profesor ──────────
             if (widget.task.hasReference) ...[
               _SectionTitle(
                 widget.task.referenceImagePaths.length > 1
-                    ? 'Imágenes de referencia del admin (${widget.task.referenceImagePaths.length})'
-                    : 'Imagen de referencia del admin',
+                    ? 'Imágenes de referencia de '
+                        '${RoleCopy.actorLabelForStudent(widget.task.assignedByRole)} '
+                        '(${widget.task.referenceImagePaths.length})'
+                    : 'Imagen de referencia de '
+                        '${RoleCopy.actorLabelForStudent(widget.task.assignedByRole)}',
                 isDark,
               ),
               const SizedBox(height: 8),
@@ -157,11 +181,16 @@ class _CompleteTaskScreenState extends ConsumerState<CompleteTaskScreen> {
                       context, widget.task.referenceImagePaths.first),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(14),
-                    child: CachedLocalImage(
-                      path: widget.task.referenceImagePaths.first,
-                      height: 160,
+                    child: Container(
+                      height: 220,
                       width: double.infinity,
-                      fit: BoxFit.cover,
+                      color: isDark ? Colors.white10 : AppColors.offWhite,
+                      child: CachedLocalImage(
+                        path: widget.task.referenceImagePaths.first,
+                        height: 220,
+                        width: double.infinity,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ),
                 )
@@ -247,15 +276,17 @@ class _CompleteTaskScreenState extends ConsumerState<CompleteTaskScreen> {
               const SizedBox(height: 10),
               Row(
                 children: [
-                  Expanded(
-                    child: _PhotoButton(
-                      icon: Icons.camera_alt_outlined,
-                      label: 'Cámara',
-                      isDark: isDark,
-                      onTap: _takePhoto,
+                  if (PlatformCaps.hasCamera) ...[
+                    Expanded(
+                      child: _PhotoButton(
+                        icon: Icons.camera_alt_outlined,
+                        label: 'Cámara',
+                        isDark: isDark,
+                        onTap: _takePhoto,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
+                    const SizedBox(width: 12),
+                  ],
                   Expanded(
                     child: _PhotoButton(
                       icon: Icons.photo_library_outlined,
@@ -304,7 +335,9 @@ class _CompleteTaskScreenState extends ConsumerState<CompleteTaskScreen> {
                 maxLines: 4,
                 decoration: InputDecoration(
                   hintText:
-                      'Agrega un comentario para el admin sobre esta tarea...',
+                      'Agrega un comentario para '
+                      '${RoleCopy.actorLabelForStudent(widget.task.assignedByRole)} '
+                      'sobre esta tarea...',
                   hintStyle: TextStyle(
                     fontFamily: 'Nunito',
                     fontSize: 13,
@@ -533,7 +566,7 @@ class _MotivationOverlayState extends State<_MotivationOverlay>
                   child: Column(
                     children: [
                       const Text(
-                        '¡Muy bien Yordan! 🎉',
+                        '¡Muy bien! 🎉',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontFamily: 'Poppins',

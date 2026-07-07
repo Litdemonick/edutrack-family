@@ -3,7 +3,7 @@ import 'package:equatable/equatable.dart';
 // ═══════════════════════════════════════════════════════════════
 // SCHEDULE BLOCK — EduTrack Family 2.0
 // Bloque del horario semanal de UN estudiante, data-driven.
-// Reemplaza al YordanSchedule hardcodeado de la v1.
+// Reemplaza al ScheduleBlock (horario v1) hardcodeado de la v1.
 // SQLite: schedule_blocks · Firestore: students/{id}/scheduleBlocks
 // ═══════════════════════════════════════════════════════════════
 
@@ -24,6 +24,12 @@ class ScheduleBlock extends Equatable {
   final DateTime updatedAt;
   final bool isDeleted;
 
+  /// Quién creó/editó este bloque por última vez — padre/tutor o
+  /// profesor (solo para mostrar, no restringe edición).
+  final String? assignedBy;
+  final String? assignedByRole;
+  final String? assignedByName;
+
   const ScheduleBlock({
     required this.id,
     required this.studentId,
@@ -35,6 +41,9 @@ class ScheduleBlock extends Equatable {
     this.color,
     required this.updatedAt,
     this.isDeleted = false,
+    this.assignedBy,
+    this.assignedByRole,
+    this.assignedByName,
   });
 
   String get startLabel => _fmt(startMin);
@@ -65,6 +74,9 @@ class ScheduleBlock extends Equatable {
     int? color,
     DateTime? updatedAt,
     bool? isDeleted,
+    String? assignedBy,
+    String? assignedByRole,
+    String? assignedByName,
   }) {
     return ScheduleBlock(
       id: id,
@@ -77,6 +89,9 @@ class ScheduleBlock extends Equatable {
       color: color ?? this.color,
       updatedAt: updatedAt ?? this.updatedAt,
       isDeleted: isDeleted ?? this.isDeleted,
+      assignedBy: assignedBy ?? this.assignedBy,
+      assignedByRole: assignedByRole ?? this.assignedByRole,
+      assignedByName: assignedByName ?? this.assignedByName,
     );
   }
 
@@ -93,6 +108,9 @@ class ScheduleBlock extends Equatable {
         'color': color,
         'updated_at': updatedAt.toIso8601String(),
         'is_deleted': isDeleted ? 1 : 0,
+        'assigned_by': assignedBy,
+        'assigned_by_role': assignedByRole,
+        'assigned_by_name': assignedByName,
       };
 
   factory ScheduleBlock.fromMap(Map<String, dynamic> map) {
@@ -107,6 +125,9 @@ class ScheduleBlock extends Equatable {
       color: map['color'] as int?,
       updatedAt: DateTime.parse(map['updated_at'] as String),
       isDeleted: (map['is_deleted'] ?? 0) == 1,
+      assignedBy: map['assigned_by'] as String?,
+      assignedByRole: map['assigned_by_role'] as String?,
+      assignedByName: map['assigned_by_name'] as String?,
     );
   }
 
@@ -121,6 +142,9 @@ class ScheduleBlock extends Equatable {
         'color': color,
         'updatedAt': updatedAt.toIso8601String(),
         'isDeleted': isDeleted,
+        'assignedBy': assignedBy,
+        'assignedByRole': assignedByRole,
+        'assignedByName': assignedByName,
       };
 
   factory ScheduleBlock.fromFirestore(
@@ -137,10 +161,25 @@ class ScheduleBlock extends Equatable {
       updatedAt: DateTime.tryParse((data['updatedAt'] ?? '') as String) ??
           DateTime.now(),
       isDeleted: (data['isDeleted'] ?? false) as bool,
+      assignedBy: data['assignedBy'] as String?,
+      assignedByRole: data['assignedByRole'] as String?,
+      assignedByName: data['assignedByName'] as String?,
     );
   }
 
   @override
-  List<Object?> get props =>
-      [id, studentId, weekday, startMin, endMin, subject, isBreak, color, isDeleted];
+  List<Object?> get props => [
+        id,
+        studentId,
+        weekday,
+        startMin,
+        endMin,
+        subject,
+        isBreak,
+        color,
+        isDeleted,
+        assignedBy,
+        assignedByRole,
+        assignedByName,
+      ];
 }

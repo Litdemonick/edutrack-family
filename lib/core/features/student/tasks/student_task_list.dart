@@ -10,7 +10,7 @@ import 'package:edutrack_family/core/features/student/dashboard/widgets/task_pri
 
 // ═══════════════════════════════════════════════════════════════
 // STUDENT TASK LIST — EduTrack Family
-// Tab dedicada de tareas para Yordan: filtros + secciones.
+// Tab dedicada de tareas para el estudiante: filtros + secciones.
 // ═══════════════════════════════════════════════════════════════
 
 class StudentTaskList extends ConsumerStatefulWidget {
@@ -89,7 +89,7 @@ class _StudentTaskListState extends ConsumerState<StudentTaskList> {
                     emoji: _filter == 'all' ? '🎉' : '🔍',
                     title: _filter == 'all' ? '¡Todo al día!' : 'Sin resultados',
                     subtitle: _filter == 'all'
-                        ? 'No tienes tareas pendientes.\n¡Sigue así, Yordan!'
+                        ? 'No tienes tareas pendientes.\n¡Sigue así!'
                         : 'No hay tareas en esta categoría.',
                   ),
                 ),

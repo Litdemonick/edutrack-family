@@ -52,10 +52,15 @@ android/key.properties
 # Firebase CLI
 .firebase/
 firebase-debug.log
+firestore-debug.log
+ui-debug.log
 
 # Cloudflare Worker (backend) — nunca subir la clave del service account
 workers/edutrack-api/node_modules/
 workers/edutrack-api/.dev.vars
 workers/edutrack-api/.wrangler/
+
+# Tests de firestore.rules/storage.rules (Node, ver firestore-rules-tests/README.md)
+firestore-rules-tests/node_modules/
 **/service-account*.json
 **/*-firebase-adminsdk-*.json

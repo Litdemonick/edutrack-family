@@ -1,69 +1,93 @@
 import 'dart:io';
 
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-import '../firebase/firestore_paths.dart';
+import '../utils/platform_caps.dart';
+import 'profile_photo_remote.dart';
+import 'storage_gateway.dart';
+import 'task_image_remote.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // EVIDENCE IMAGE SERVICE — EduTrack Family 2.0
-// Fotos de evidencia/referencia por Firebase Storage (reemplaza el
-// canal base64 de la v1 que quemaba la cuota de Firestore).
+// Fotos de evidencia/referencia vía el Worker de Cloudflare (R2), no
+// Firebase Storage (nunca se activó en la consola del proyecto —
+// las subidas fallaban en silencio y las imágenes solo quedaban en
+// el dispositivo que las tomó, nunca llegaban a los demás).
 //
-// Rutas del bucket (protegidas por storage.rules):
-//   evidence/{studentId}/{taskId}/evidence_N.jpg   (sube el hijo)
-//   reference/{studentId}/{taskId}/reference_N.jpg (sube el adulto)
+// 'reference' (imágenes de referencia del padre/tutor/profesor):
+// un solo objeto en R2, reference/{studentId}/{taskId}/reference_N.jpg
+// — se borran las previas antes de subir las nuevas (el admin las
+// edita in-place, no hace falta historial de versiones).
 //
-// Cache local: <docs>/EduTrack/images/<taskId>/<kind>_N.jpg
+// 'evidence' (fotos que sube el estudiante): CADA envío a revisión
+// sube a su PROPIA carpeta versionada (usa completedAt como
+// [version]) — evidence/{studentId}/{taskId}/{version}/evidence_N.jpg
+// — nunca se borra. Antes se sobrescribía siempre el mismo archivo,
+// así que el Historial de conversación no podía mostrar las fotos de
+// envíos previos en ningún dispositivo que no fuera el que las tomó
+// (el archivo remoto ya no existía tras el siguiente reenvío). Las
+// llamadas SIN [version] (usadas para "la entrega actual") siguen
+// yendo a la carpeta plana de siempre, sin versión, por compatibilidad.
+//
+// Cache local: <docs>/EduTrack/images/<taskId>/[<version>/]<kind>_N.jpg
+//
+// Android/iOS Y Windows/Linux usan exactamente el mismo código (a
+// diferencia de antes, que necesitaba SDK nativo vs REST porque
+// firebase_storage no existe en desktop) — todo es HTTP normal ahora.
 // ═══════════════════════════════════════════════════════════════
 
-class EvidenceImageService {
+class EvidenceImageService implements StorageGateway {
   EvidenceImageService._();
-  static final EvidenceImageService instance = EvidenceImageService._();
-
-  final _storage = FirebaseStorage.instance;
+  static final StorageGateway instance = EvidenceImageService._();
 
   static const int _maxBytes = 300 * 1024; // ≤300 KB por foto
-
-  String _bucketDir(String kind, String studentId, String taskId) =>
-      kind == 'reference'
-          ? FirestorePaths.referenceStoragePath(studentId, taskId, '')
-          : FirestorePaths.evidenceStoragePath(studentId, taskId, '');
 
   // ─────────────────────────────────────────────────────────────
   // SUBIDA
   // ─────────────────────────────────────────────────────────────
 
-  /// Comprime y sube las imágenes. Reemplaza las previas del mismo tipo.
-  /// [kind]: 'evidence' | 'reference'
+  /// Comprime (si el dispositivo lo soporta) y sube las imágenes.
+  /// [kind]: 'evidence' | 'reference'. [version]: ver comentario de
+  /// cabecera — sin ella, reemplaza las previas del mismo [kind]
+  /// (comportamiento de siempre); con ella, sube a su propia carpeta
+  /// sin tocar envíos anteriores.
+  @override
   Future<bool> uploadImages({
     required String studentId,
     required String taskId,
     required String kind,
     required List<String> localPaths,
+    String? version,
   }) async {
     if (studentId.isEmpty || localPaths.isEmpty) return false;
     try {
-      // Borrar las previas de este tipo (re-subida limpia)
-      await _deleteAll(studentId, taskId, kind);
+      // Re-subida limpia solo quando NO hay versión (evidencia
+      // versionada nunca pisa envíos anteriores, no hay nada que
+      // borrar).
+      if (version == null) {
+        await _deleteAll(studentId, taskId, kind);
+      }
 
+      var uploaded = 0;
       for (var i = 0; i < localPaths.length; i++) {
         final bytes = await _compress(localPaths[i]);
         if (bytes == null) continue;
 
-        final ref = _storage
-            .ref()
-            .child('${_bucketDir(kind, studentId, taskId)}${kind}_$i.jpg');
-        await ref.putData(
-          bytes,
-          SettableMetadata(contentType: 'image/jpeg'),
+        final ok = await TaskImageRemote.instance.upload(
+          studentId: studentId,
+          taskId: taskId,
+          kind: kind,
+          name: '${kind}_$i.jpg',
+          bytes: bytes,
+          version: version,
         );
+        if (ok) uploaded++;
       }
-      debugPrint('[EvidenceImg] ✓ ${localPaths.length} $kind subidas ($taskId)');
-      return true;
+      debugPrint('[EvidenceImg] ✓ $uploaded/${localPaths.length} $kind subidas ($taskId${version != null ? ' v$version' : ''})');
+      return uploaded > 0;
     } catch (e) {
       debugPrint('[EvidenceImg] ✗ upload $kind ($taskId): $e');
       return false;
@@ -73,6 +97,11 @@ class EvidenceImageService {
   Future<Uint8List?> _compress(String path) async {
     final file = File(path);
     if (!await file.exists()) return null;
+
+    // flutter_image_compress no tiene implementación para Windows/
+    // Linux — ahí se sube el archivo tal cual (ya viene acotado a
+    // ~2MB por el límite del Worker igual).
+    if (!PlatformCaps.isMobile) return file.readAsBytes();
 
     // Calidad adaptativa hasta caber en _maxBytes
     for (final quality in const [85, 70, 55]) {
@@ -97,43 +126,66 @@ class EvidenceImageService {
   }
 
   Future<void> _deleteAll(String studentId, String taskId, String kind) async {
-    try {
-      final list = await _storage
-          .ref()
-          .child(_bucketDir(kind, studentId, taskId))
-          .listAll();
-      for (final item in list.items) {
-        if (item.name.startsWith(kind)) {
-          await item.delete().catchError((_) {});
-        }
-      }
-    } catch (_) {}
+    await TaskImageRemote.instance
+        .deleteAll(studentId: studentId, taskId: taskId, kind: kind);
+  }
+
+  /// Sin [version], el Worker borra TODO lo que empiece con ese
+  /// prefijo — como cada carpeta versionada es un sub-prefijo de
+  /// `evidence/{studentId}/{taskId}/`, esto borra todas las
+  /// versiones (todos los envíos) de una sola vez. La referencia no
+  /// tiene versiones (un solo objeto), se borra igual.
+  @override
+  Future<void> deleteAllTaskImages({
+    required String studentId,
+    required String taskId,
+  }) async {
+    await _deleteAll(studentId, taskId, 'evidence');
+    await _deleteAll(studentId, taskId, 'reference');
   }
 
   // ─────────────────────────────────────────────────────────────
   // DESCARGA
   // ─────────────────────────────────────────────────────────────
 
-  /// Descarga las imágenes de un tipo al cache local y devuelve las rutas.
+  /// Descarga las imágenes de un tipo (y opcionalmente [version]) al
+  /// cache local y devuelve las rutas.
+  @override
   Future<List<String>> downloadImages({
     required String studentId,
     required String taskId,
     required String kind,
+    String? version,
+    bool forceRefresh = false,
   }) async {
     if (studentId.isEmpty) return const [];
     try {
-      final dir = await _localDir(taskId);
-      final list = await _storage
-          .ref()
-          .child(_bucketDir(kind, studentId, taskId))
-          .listAll();
+      final dir = await _localDir(taskId, version: version);
+      final names = await TaskImageRemote.instance.listNames(
+        studentId: studentId,
+        taskId: taskId,
+        kind: kind,
+        version: version,
+      );
 
       final paths = <String>[];
-      for (final item in list.items) {
-        if (!item.name.startsWith(kind)) continue;
-        final localFile = File(p.join(dir.path, item.name));
-        if (!await localFile.exists()) {
-          await item.writeToFile(localFile);
+      for (final name in names) {
+        if (!name.startsWith(kind)) continue;
+        final localFile = File(p.join(dir.path, name));
+        // Una descarga versionada nunca cambia de contenido (cada
+        // envío tiene su propia carpeta fija) — solo se re-verifica
+        // forceRefresh/existencia para la "actual" (sin versión), que
+        // sí puede quedar desactualizada bajo el mismo nombre.
+        if (version != null ? !await localFile.exists() : (forceRefresh || !await localFile.exists())) {
+          final bytes = await TaskImageRemote.instance.download(
+            studentId: studentId,
+            taskId: taskId,
+            kind: kind,
+            name: name,
+            version: version,
+          );
+          if (bytes == null) continue;
+          await localFile.writeAsBytes(bytes);
         }
         paths.add(localFile.path);
       }
@@ -146,9 +198,10 @@ class EvidenceImageService {
   }
 
   /// Imágenes ya cacheadas localmente (sin ir a la red).
-  Future<List<String>> getLocalPaths(String taskId, String kind) async {
+  @override
+  Future<List<String>> getLocalPaths(String taskId, String kind, {String? version}) async {
     try {
-      final dir = await _localDir(taskId);
+      final dir = await _localDir(taskId, version: version);
       if (!await dir.exists()) return const [];
       final files = dir
           .listSync()
@@ -163,10 +216,34 @@ class EvidenceImageService {
     }
   }
 
-  Future<Directory> _localDir(String taskId) async {
+  Future<Directory> _localDir(String taskId, {String? version}) async {
     final docs = await getApplicationDocumentsDirectory();
-    final dir = Directory(p.join(docs.path, 'EduTrack', 'images', taskId));
+    final segments = [docs.path, 'EduTrack', 'images', taskId];
+    if (version != null) segments.add(version);
+    final dir = Directory(p.joinAll(segments));
     if (!await dir.exists()) await dir.create(recursive: true);
     return dir;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // FOTO DE PERFIL — vía el Worker (Cloudflare R2), no Firebase
+  // Storage (nunca se activó en la consola del proyecto).
+  // ─────────────────────────────────────────────────────────────
+
+  @override
+  Future<String?> uploadProfilePhoto(String uid, String localPath) async {
+    if (uid.isEmpty) return null;
+    final bytes = await _compress(localPath);
+    if (bytes == null) return null;
+    return ProfilePhotoRemote.instance.upload(bytes);
+  }
+
+  @override
+  Future<bool> downloadProfilePhoto(String uid, String destPath) async {
+    if (uid.isEmpty) return false;
+    final bytes = await ProfilePhotoRemote.instance.download(uid);
+    if (bytes == null) return false;
+    await File(destPath).writeAsBytes(bytes);
+    return true;
   }
 }

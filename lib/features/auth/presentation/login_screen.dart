@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:edutrack_family/core/constants/app_routes.dart';
 import 'package:edutrack_family/core/providers/auth_provider.dart';
+import 'package:edutrack_family/core/utils/input_sanitizer.dart';
 import 'widgets/auth_widgets.dart';
 
 // ═══════════════════════════════════════════════════════════════
@@ -37,9 +38,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _loginEmail() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
-    final result = await ref
-        .read(authProvider.notifier)
-        .loginEmail(_emailCtrl.text, _passCtrl.text);
+    final result = await ref.read(authProvider.notifier).loginEmail(
+          InputSanitizer.clean(_emailCtrl.text),
+          InputSanitizer.clean(_passCtrl.text),
+        );
     if (!mounted) return;
     setState(() => _loading = false);
     if (!result.ok) _showError(result.error!);
@@ -48,11 +50,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _loginGoogle() async {
     setState(() => _googleLoading = true);
-    final result = await ref.read(authProvider.notifier).loginGoogle();
+    final notifier = ref.read(authProvider.notifier);
+    final result = await notifier.loginGoogle();
     if (!mounted) return;
     setState(() => _googleLoading = false);
-    if (!result.ok && result.error != 'Inicio con Google cancelado.') {
-      _showError(result.error!);
+    if (!result.ok) {
+      if (result.error != 'Inicio con Google cancelado.') _showError(result.error!);
+      return;
+    }
+    // Primera vez con Google: el usuario queda autenticado pero sin
+    // perfil (state se queda en null→null, Riverpod no dispara el
+    // redirect automático del router porque el valor no "cambió")
+    // — navegamos manualmente al gate de rol+edad.
+    if (notifier.needsProfileCompletion && mounted) {
+      context.go(AppRoutes.completeProfile);
     }
   }
 

@@ -6,7 +6,10 @@ import 'package:edutrack_family/core/constants/app_routes.dart';
 import 'package:edutrack_family/core/constants/app_strings.dart';
 import 'package:edutrack_family/core/constants/utils/date_utils.dart';
 import 'package:edutrack_family/core/data/local/models/task_model.dart';
+import 'package:edutrack_family/core/providers/auth_provider.dart';
+import 'package:edutrack_family/core/providers/family_provider.dart';
 import 'package:edutrack_family/core/providers/task_provider.dart';
+import 'package:edutrack_family/core/shared/widgets/assigned_by_badge.dart';
 import 'package:edutrack_family/core/shared/widgets/confirmation_dialog.dart';
 import 'package:edutrack_family/core/shared/widgets/empty_state.dart';
 import 'package:edutrack_family/core/shared/widgets/loading_widget.dart';
@@ -14,7 +17,7 @@ import 'package:edutrack_family/core/features/student/dashboard/widgets/traffic_
 
 // ═══════════════════════════════════════════════════════════════
 // TASK LIST ADMIN — EduTrack Family
-// Lista completa de tareas de Yordan para gestión del admin.
+// Lista completa de tareas del estudiante activo para gestión del admin.
 // ═══════════════════════════════════════════════════════════════
 
 class TaskListAdmin extends ConsumerStatefulWidget {
@@ -31,6 +34,7 @@ class _TaskListAdminState extends ConsumerState<TaskListAdmin> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final tasksAsync = ref.watch(taskProvider);
+    final studentName = ref.watch(activeStudentProvider)?.name;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -39,9 +43,9 @@ class _TaskListAdminState extends ConsumerState<TaskListAdmin> {
           SliverAppBar(
             automaticallyImplyLeading: false,
             pinned: true,
-            title: const Text(
-              'Tareas de Yordan',
-              style: TextStyle(
+            title: Text(
+              studentName != null ? 'Tareas de $studentName' : 'Tareas',
+              style: const TextStyle(
                   fontFamily: 'Poppins', fontWeight: FontWeight.w600),
             ),
             actions: [
@@ -194,6 +198,12 @@ class _TaskListAdminState extends ConsumerState<TaskListAdmin> {
           child: _TaskAdminRow(
             task: task,
             isDark: isDark,
+            // Editar/eliminar quedan reservados a quien la creó — el
+            // otro padre/tutor o el otro profesor la ve igual, pero
+            // no la puede tocar (misma regla que ya aplica el
+            // servidor en firestore.rules).
+            isCreator: task.assignedBy == null ||
+                task.assignedBy == ref.read(authProvider)?.uid,
             onDelete: () => _confirmDelete(context, ref, task),
           ),
         )),
@@ -295,11 +305,13 @@ class _FilterChip extends StatelessWidget {
 class _TaskAdminRow extends StatelessWidget {
   final TaskModel task;
   final bool isDark;
+  final bool isCreator;
   final VoidCallback onDelete;
 
   const _TaskAdminRow({
     required this.task,
     required this.isDark,
+    required this.isCreator,
     required this.onDelete,
   });
 
@@ -351,13 +363,24 @@ class _TaskAdminRow extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            subtitle: Text(
-              '${task.subject} • ${EduDateUtils.shortDateLabel(task.dueDate)}',
-              style: TextStyle(
-                fontFamily: 'Nunito',
-                fontSize: 12,
-                color: isDark ? Colors.white38 : AppColors.grey,
-              ),
+            subtitle: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    '${task.subject} • ${EduDateUtils.shortDateLabel(task.dueDate)}',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontSize: 12,
+                      color: isDark ? Colors.white38 : AppColors.grey,
+                    ),
+                  ),
+                ),
+                if (task.assignedByRole != null) ...[
+                  const SizedBox(width: 6),
+                  AssignedByBadge(assignedByRole: task.assignedByRole, compact: true),
+                ],
+              ],
             ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
@@ -464,27 +487,49 @@ class _TaskAdminRow extends StatelessWidget {
                   context.push(AppRoutes.taskView, extra: {'task': task, 'isAdmin': true});
                 },
               ),
-              if (!task.isCompleted)
+              if (isCreator) ...[
+                if (!task.isCompleted)
+                  _SheetTile(
+                    icon: Icons.edit_outlined,
+                    label: 'Editar',
+                    color: AppColors.accentBlue,
+                    isDark: isDark,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      context.push(AppRoutes.adminEditTaskPath(task.id), extra: task);
+                    },
+                  ),
                 _SheetTile(
-                  icon: Icons.edit_outlined,
-                  label: 'Editar',
-                  color: AppColors.accentBlue,
+                  icon: Icons.delete_outline_rounded,
+                  label: 'Eliminar',
+                  color: AppColors.statusRed,
                   isDark: isDark,
                   onTap: () {
                     Navigator.pop(ctx);
-                    context.push(AppRoutes.adminEditTaskPath(task.id), extra: task);
+                    onDelete();
                   },
                 ),
-              _SheetTile(
-                icon: Icons.delete_outline_rounded,
-                label: 'Eliminar',
-                color: AppColors.statusRed,
-                isDark: isDark,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  onDelete();
-                },
-              ),
+              ] else
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.lock_outline_rounded,
+                          size: 16, color: isDark ? Colors.white54 : AppColors.grey),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Solo quien la creó puede editarla o eliminarla.',
+                          style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontSize: 12,
+                            color: isDark ? Colors.white54 : AppColors.grey,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),

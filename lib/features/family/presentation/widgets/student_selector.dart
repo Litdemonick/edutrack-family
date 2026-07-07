@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:edutrack_family/core/constants/app_routes.dart';
 import 'package:edutrack_family/core/providers/family_provider.dart';
+import 'package:edutrack_family/core/responsive/breakpoints.dart';
 import 'student_avatar.dart';
 
 // ═══════════════════════════════════════════════════════════════
@@ -24,14 +25,21 @@ class StudentSelector extends ConsumerWidget {
     final active = ref.watch(activeStudentProvider);
 
     if (students.isEmpty) {
+      final color = onDarkBackground ? Colors.white : null;
+      // Solo ícono en pantallas angostas: el botón con texto completo
+      // no entraba junto al título del AppBar (se solapaban) cuando
+      // la barra se colapsa en un celular.
+      if (context.isCompact) {
+        return IconButton(
+          onPressed: () => context.push(AppRoutes.family),
+          icon: Icon(Icons.person_add_alt_1_rounded, color: color),
+          tooltip: 'Agregar hijo/a',
+        );
+      }
       return TextButton.icon(
         onPressed: () => context.push(AppRoutes.family),
-        icon: Icon(Icons.person_add,
-            size: 18, color: onDarkBackground ? Colors.white : null),
-        label: Text(
-          'Agregar hijo/a',
-          style: TextStyle(color: onDarkBackground ? Colors.white : null),
-        ),
+        icon: Icon(Icons.person_add, size: 18, color: color),
+        label: Text('Agregar hijo/a', style: TextStyle(color: color)),
       );
     }
 

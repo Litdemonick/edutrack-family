@@ -11,10 +11,15 @@ import 'package:flutter/widgets.dart';
 enum WindowSize { compact, medium, expanded }
 
 extension ResponsiveContext on BuildContext {
-  double get _width => MediaQuery.sizeOf(this).width;
-
   WindowSize get windowSize {
-    final w = _width;
+    final size = MediaQuery.sizeOf(this);
+    final w = size.width;
+    // Un teléfono en horizontal tiene ancho de tablet (≥600) pero una
+    // altura de teléfono (~350-420) — insuficiente para un sidebar
+    // pensado para tablet/escritorio (varios destinos con label).
+    // Umbral 480 = "compact height" oficial de Android; por debajo de
+    // eso, se queda en compact sin importar el ancho.
+    if (size.height < 480) return WindowSize.compact;
     if (w < 600) return WindowSize.compact;
     if (w < 1024) return WindowSize.medium;
     return WindowSize.expanded;
@@ -23,6 +28,11 @@ extension ResponsiveContext on BuildContext {
   bool get isCompact => windowSize == WindowSize.compact;
   bool get isMedium => windowSize == WindowSize.medium;
   bool get isExpanded => windowSize == WindowSize.expanded;
+
+  /// Altura de ventana corta (celular en horizontal). Útil para
+  /// widgets que se abren/apilan hacia arriba (speed dial, menús) y
+  /// necesitan una variante horizontal cuando no hay suficiente alto.
+  bool get isShortHeight => MediaQuery.sizeOf(this).height < 480;
 
   /// Ancho máximo estándar para formularios centrados.
   static const double formMaxWidth = 560;

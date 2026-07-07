@@ -12,7 +12,7 @@ import 'package:edutrack_family/core/shared/widgets/loading_widget.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // STUDENT EVENT LIST — EduTrack Family
-// Vista de eventos escolares para Yordan. Solo lectura.
+// Vista de eventos escolares para el estudiante. Solo lectura.
 // ═══════════════════════════════════════════════════════════════
 
 class StudentEventList extends ConsumerWidget {
@@ -46,7 +46,8 @@ class StudentEventList extends ConsumerWidget {
                     child: EmptyState(
                       emoji: '📅',
                       title: 'Sin eventos',
-                      subtitle: 'El admin aún no ha agregado eventos escolares.',
+                      subtitle:
+                          'Cuando tu padre/tutor o profesor agregue un evento escolar, aparecerá aquí.',
                     ),
                   ),
                 );

@@ -59,6 +59,13 @@ class EventModel extends Equatable {
   final bool isDeleted;
   final int reminderMinutesBefore;
 
+  /// Quién lo creó — uid, rol ('parent'|'teacher') y nombre a la fecha
+  /// de creación (denormalizado: se muestra "Creado por" sin tener que
+  /// ir a buscar el perfil del creador cada vez).
+  final String? assignedBy;
+  final String? assignedByRole;
+  final String? assignedByName;
+
   const EventModel({
     required this.id,
     this.studentId = '',
@@ -72,6 +79,9 @@ class EventModel extends Equatable {
     required this.updatedAt,
     this.isDeleted = false,
     this.reminderMinutesBefore = 60,
+    this.assignedBy,
+    this.assignedByRole,
+    this.assignedByName,
   });
 
   int get daysLeft => EduDateUtils.daysUntil(date);
@@ -91,6 +101,9 @@ class EventModel extends Equatable {
     DateTime? updatedAt,
     bool? isDeleted,
     int? reminderMinutesBefore,
+    String? assignedBy,
+    String? assignedByRole,
+    String? assignedByName,
   }) {
     return EventModel(
       id: id ?? this.id,
@@ -105,6 +118,9 @@ class EventModel extends Equatable {
       updatedAt: updatedAt ?? this.updatedAt,
       isDeleted: isDeleted ?? this.isDeleted,
       reminderMinutesBefore: reminderMinutesBefore ?? this.reminderMinutesBefore,
+      assignedBy: assignedBy ?? this.assignedBy,
+      assignedByRole: assignedByRole ?? this.assignedByRole,
+      assignedByName: assignedByName ?? this.assignedByName,
     );
   }
 
@@ -126,6 +142,9 @@ class EventModel extends Equatable {
       'updated_at': EduDateUtils.toIso(updatedAt),
       'is_deleted': isDeleted ? 1 : 0,
       'reminder_minutes_before': reminderMinutesBefore,
+      'assigned_by': assignedBy,
+      'assigned_by_role': assignedByRole,
+      'assigned_by_name': assignedByName,
     };
   }
 
@@ -149,6 +168,9 @@ class EventModel extends Equatable {
       updatedAt: DateTime.parse(map['updated_at'] as String),
       isDeleted: (map['is_deleted'] as int? ?? 0) == 1,
       reminderMinutesBefore: map['reminder_minutes_before'] as int? ?? 60,
+      assignedBy: map['assigned_by'] as String?,
+      assignedByRole: map['assigned_by_role'] as String?,
+      assignedByName: map['assigned_by_name'] as String?,
     );
   }
 
@@ -168,6 +190,9 @@ class EventModel extends Equatable {
       'updated_at': updatedAt.toIso8601String(),
       'is_deleted': isDeleted,
       'reminder_minutes_before': reminderMinutesBefore,
+      'assigned_by': assignedBy,
+      'assigned_by_role': assignedByRole,
+      'assigned_by_name': assignedByName,
     };
   }
 
@@ -197,6 +222,9 @@ class EventModel extends Equatable {
       updatedAt: DateTime.parse(data['updated_at'] as String),
       isDeleted: data['is_deleted'] as bool? ?? false,
       reminderMinutesBefore: data['reminder_minutes_before'] as int? ?? 60,
+      assignedBy: data['assigned_by'] as String?,
+      assignedByRole: data['assigned_by_role'] as String?,
+      assignedByName: data['assigned_by_name'] as String?,
     );
   }
 

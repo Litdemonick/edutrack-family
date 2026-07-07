@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:edutrack_family/core/providers/auth_provider.dart';
+import 'package:edutrack_family/core/utils/input_sanitizer.dart';
 import 'widgets/auth_widgets.dart';
 
 // ═══════════════════════════════════════════════════════════════
@@ -33,7 +34,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     setState(() => _loading = true);
     final result = await ref
         .read(authProvider.notifier)
-        .sendPasswordReset(_emailCtrl.text);
+        .sendPasswordReset(InputSanitizer.clean(_emailCtrl.text));
     if (!mounted) return;
     setState(() {
       _loading = false;

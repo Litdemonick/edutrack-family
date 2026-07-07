@@ -30,6 +30,12 @@ class TaskModel extends Equatable {
   /// uid del padre/profesor que asignó la tarea.
   final String? assignedBy;
 
+  /// Rol ('parent'|'teacher') y nombre de quien asignó, al momento de
+  /// crearla — denormalizado para mostrar "Creado por" sin ir a buscar
+  /// el perfil del creador cada vez.
+  final String? assignedByRole;
+  final String? assignedByName;
+
   final String title;
   final String subject;
   final String? description;
@@ -62,6 +68,8 @@ class TaskModel extends Equatable {
     required this.id,
     this.studentId = '',
     this.assignedBy,
+    this.assignedByRole,
+    this.assignedByName,
     required this.title,
     required this.subject,
     this.description,
@@ -111,6 +119,8 @@ class TaskModel extends Equatable {
     String? id,
     String? studentId,
     String? assignedBy,
+    String? assignedByRole,
+    String? assignedByName,
     String? title,
     String? subject,
     String? description,
@@ -118,9 +128,18 @@ class TaskModel extends Equatable {
     DateTime? dueDate,
     TaskStatus? status,
     List<String>? evidencePhotoPaths,
+    // Al aprobar una tarea se borran sus fotos de R2 (ver
+    // acceptTask) — sin esta bandera, copyWith no tenía forma de
+    // apagar hasEvidenceImages (el getter normal solo puede
+    // ENCENDERLO, nunca apagarlo, para no perder el flag al pasar
+    // evidencePhotoPaths vacío por error en otro lado).
+    bool clearEvidenceImages = false,
     String? completionNote,
     bool clearCompletionNote = false,
     List<String>? referenceImagePaths,
+    // Misma razón que clearEvidenceImages — al aprobar una tarea
+    // también se borra su imagen de referencia en R2.
+    bool clearReferenceImages = false,
     DateTime? completedAt,
     bool clearCompletedAt = false,
     DateTime? updatedAt,
@@ -129,12 +148,14 @@ class TaskModel extends Equatable {
     bool? isDeleted,
     List<ConversationEntry>? conversationHistory,
   }) {
-    final newEv = evidencePhotoPaths ?? this.evidencePhotoPaths;
-    final newRef = referenceImagePaths ?? this.referenceImagePaths;
+    final newEv = clearEvidenceImages ? const <String>[] : (evidencePhotoPaths ?? this.evidencePhotoPaths);
+    final newRef = clearReferenceImages ? const <String>[] : (referenceImagePaths ?? this.referenceImagePaths);
     return TaskModel(
       id: id ?? this.id,
       studentId: studentId ?? this.studentId,
       assignedBy: assignedBy ?? this.assignedBy,
+      assignedByRole: assignedByRole ?? this.assignedByRole,
+      assignedByName: assignedByName ?? this.assignedByName,
       title: title ?? this.title,
       subject: subject ?? this.subject,
       description: description ?? this.description,
@@ -142,10 +163,10 @@ class TaskModel extends Equatable {
       dueDate: dueDate ?? this.dueDate,
       status: status ?? this.status,
       evidencePhotoPaths: newEv,
-      hasEvidenceImages: _hasEvidenceFlag || newEv.isNotEmpty,
+      hasEvidenceImages: clearEvidenceImages ? false : (_hasEvidenceFlag || newEv.isNotEmpty),
       completionNote: clearCompletionNote ? null : (completionNote ?? this.completionNote),
       referenceImagePaths: newRef,
-      hasReferenceImages: _hasReferenceFlag || newRef.isNotEmpty,
+      hasReferenceImages: clearReferenceImages ? false : (_hasReferenceFlag || newRef.isNotEmpty),
       completedAt: clearCompletedAt ? null : (completedAt ?? this.completedAt),
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -165,6 +186,8 @@ class TaskModel extends Equatable {
       'id': id,
       'student_id': studentId,
       'assigned_by': assignedBy,
+      'assigned_by_role': assignedByRole,
+      'assigned_by_name': assignedByName,
       'title': title,
       'subject': subject,
       'description': description,
@@ -193,6 +216,8 @@ class TaskModel extends Equatable {
       id: map['id'] as String,
       studentId: map['student_id'] as String? ?? '',
       assignedBy: map['assigned_by'] as String?,
+      assignedByRole: map['assigned_by_role'] as String?,
+      assignedByName: map['assigned_by_name'] as String?,
       title: map['title'] as String,
       subject: map['subject'] as String,
       description: map['description'] as String?,
@@ -257,6 +282,8 @@ class TaskModel extends Equatable {
   Map<String, dynamic> toFirestore() {
     return {
       'assigned_by': assignedBy,
+      'assigned_by_role': assignedByRole,
+      'assigned_by_name': assignedByName,
       'title': title,
       'subject': subject,
       'description': description,
@@ -320,6 +347,8 @@ class TaskModel extends Equatable {
       id: id,
       studentId: studentId,
       assignedBy: data['assigned_by'] as String?,
+      assignedByRole: data['assigned_by_role'] as String?,
+      assignedByName: data['assigned_by_name'] as String?,
       title: data['title'] as String? ?? 'Sin título',
       subject: data['subject'] as String? ?? 'Sin materia',
       description: data['description'] as String?,

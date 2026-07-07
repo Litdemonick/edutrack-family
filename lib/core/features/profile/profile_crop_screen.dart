@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -36,6 +37,23 @@ class _ProfileCropScreenState extends State<ProfileCropScreen> {
   double _rotationAngle = 0.0;
   bool _saving = false;
 
+  // La imagen arranca con este zoom (no en 1.0): a escala exacta la
+  // foto ya llena el círculo (boundaryMargin: cero), así que no hay
+  // margen para arrastrarla hasta agrandar. Empezar ya zoomeada
+  // garantiza que SIEMPRE se pueda mover con el mouse/dedo desde el
+  // principio, sin depender de tocar un botón de zoom primero.
+  static const _initialScale = 1.4;
+  double _scale = _initialScale;
+
+  Matrix4 _scaleMatrix(double scale) =>
+      Matrix4.identity()..scaleByDouble(scale, scale, scale, 1);
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.value = _scaleMatrix(_initialScale);
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -45,8 +63,19 @@ class _ProfileCropScreenState extends State<ProfileCropScreen> {
   void _rotate() => setState(() => _rotationAngle += pi / 2);
 
   void _resetView() {
-    _controller.value = Matrix4.identity();
-    setState(() => _rotationAngle = 0.0);
+    setState(() {
+      _scale = _initialScale;
+      _rotationAngle = 0.0;
+    });
+    _controller.value = _scaleMatrix(_initialScale);
+  }
+
+  // Botones de zoom explícitos: en escritorio no hay gesto de
+  // pellizcar; con estos (o la rueda del mouse, que InteractiveViewer
+  // ya soporta) siempre se puede agrandar más además del zoom inicial.
+  void _zoom(double factor) {
+    setState(() => _scale = (_scale * factor).clamp(1.0, 6.0));
+    _controller.value = _scaleMatrix(_scale);
   }
 
   Future<void> _save() async {
@@ -63,14 +92,25 @@ class _ProfileCropScreenState extends State<ProfileCropScreen> {
         return;
       }
 
-      final bytes = byteData.buffer.asUint8List();
+      // Recomprimir a JPEG con el paquete "image" (Dart puro, corre
+      // igual en Windows/Linux/Android/iOS sin plugin nativo). El PNG
+      // crudo del recorte (pixelRatio 3.0) puede superar los 2MB que
+      // exige storage.rules — en Windows/Linux no hay
+      // flutter_image_compress para bajarlo después de subir, así
+      // que sin este paso la subida quedaba rechazada en silencio.
+      final rawPng = byteData.buffer.asUint8List();
+      final decoded = img.decodePng(rawPng)!;
+      final resized =
+          decoded.width > 640 ? img.copyResize(decoded, width: 640) : decoded;
+      final jpgBytes = img.encodeJpg(resized, quality: 85);
+
       final appDir = await getApplicationDocumentsDirectory();
       final profileDir = Directory(p.join(appDir.path, 'profiles'));
       if (!profileDir.existsSync()) profileDir.createSync(recursive: true);
 
       final destPath =
-          p.join(profileDir.path, 'profile_${widget.userId}.png');
-      await File(destPath).writeAsBytes(bytes);
+          p.join(profileDir.path, 'profile_${widget.userId}.jpg');
+      await File(destPath).writeAsBytes(jpgBytes);
 
       if (mounted) Navigator.pop(context, destPath);
     } catch (e) {
@@ -164,6 +204,8 @@ class _ProfileCropScreenState extends State<ProfileCropScreen> {
               isDark: isDark,
               onRotate: _rotate,
               onReset: _resetView,
+              onZoomIn: () => _zoom(1.25),
+              onZoomOut: () => _zoom(0.8),
             ),
           ],
         ),
@@ -244,11 +286,15 @@ class _BottomControls extends StatelessWidget {
   final bool isDark;
   final VoidCallback onRotate;
   final VoidCallback onReset;
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
 
   const _BottomControls({
     required this.isDark,
     required this.onRotate,
     required this.onReset,
+    required this.onZoomIn,
+    required this.onZoomOut,
   });
 
   @override
@@ -262,16 +308,10 @@ class _BottomControls extends StatelessWidget {
     final btnBg = isDark
         ? Colors.white.withValues(alpha: 0.10)
         : Colors.black.withValues(alpha: 0.08);
-    final hintIconColor = isDark
-        ? Colors.white.withValues(alpha: 0.45)
-        : Colors.black.withValues(alpha: 0.30);
-    final hintTextColor = isDark
-        ? Colors.white.withValues(alpha: 0.35)
-        : Colors.black.withValues(alpha: 0.25);
 
     return Container(
       color: barColor,
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
@@ -283,25 +323,25 @@ class _BottomControls extends StatelessWidget {
             bgColor: btnBg,
             onTap: onRotate,
           ),
-
-          // Hint zoom (visual, no interactivo)
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.pinch_rounded, color: hintIconColor, size: 30),
-              const SizedBox(height: 4),
-              Text(
-                'Pellizca\npara zoom',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Nunito',
-                  fontSize: 10,
-                  color: hintTextColor,
-                ),
-              ),
-            ],
+          // Botones de zoom explícitos: en escritorio no hay gesto de
+          // pellizcar; con estos (o la rueda del mouse) siempre se
+          // puede agrandar antes de arrastrar la imagen.
+          _CtrlBtn(
+            icon: Icons.zoom_out_rounded,
+            label: 'Alejar',
+            iconColor: iconColor,
+            labelColor: labelColor,
+            bgColor: btnBg,
+            onTap: onZoomOut,
           ),
-
+          _CtrlBtn(
+            icon: Icons.zoom_in_rounded,
+            label: 'Acercar',
+            iconColor: iconColor,
+            labelColor: labelColor,
+            bgColor: btnBg,
+            onTap: onZoomIn,
+          ),
           _CtrlBtn(
             icon: Icons.center_focus_strong_rounded,
             label: 'Resetear',

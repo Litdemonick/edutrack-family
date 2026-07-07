@@ -17,7 +17,7 @@ import 'package:edutrack_family/core/shared/widgets/animated_bell_icon.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // STUDENT DASHBOARD — EduTrack Family
-// Panel principal de Yordan: resumen interactivo + lista ordenada.
+// Panel principal de el estudiante: resumen interactivo + lista ordenada.
 // Secciones: Urgentes → En revisión → Pendientes → Completadas
 // ═══════════════════════════════════════════════════════════════
 
@@ -84,7 +84,7 @@ class StudentDashboard extends ConsumerWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${AppStrings.studentWelcome}, ${user?.displayName ?? "Yordan"}! ${user?.avatarEmoji ?? "🎒"}',
+                    '${AppStrings.studentWelcome}, ${user?.displayName.isNotEmpty == true ? user!.displayName : "estudiante"}! ${user?.avatarEmoji ?? "🎒"}',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontFamily: 'Poppins',

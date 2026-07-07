@@ -6,12 +6,18 @@ import 'package:go_router/go_router.dart';
 import 'package:edutrack_family/core/constants/app_colors.dart';
 import 'package:edutrack_family/core/constants/app_routes.dart';
 import 'package:edutrack_family/core/constants/utils/date_utils.dart';
+import 'package:edutrack_family/core/data/local/models/app_user_model.dart';
 import 'package:edutrack_family/core/data/local/models/task_model.dart';
 
+import 'package:edutrack_family/core/providers/auth_provider.dart';
+import 'package:edutrack_family/core/providers/family_provider.dart';
 import 'package:edutrack_family/core/providers/task_provider.dart';
+import 'package:edutrack_family/core/responsive/breakpoints.dart';
 import 'package:edutrack_family/core/data/local/models/notification_model.dart';
 import 'package:edutrack_family/core/services/notification_bus.dart';
+import 'package:edutrack_family/core/shared/widgets/assigned_by_badge.dart';
 import 'package:edutrack_family/core/shared/widgets/empty_state.dart';
+import 'package:edutrack_family/core/utils/role_copy.dart';
 
 import 'package:edutrack_family/core/shared/widgets/cached_local_image.dart';
 import 'package:edutrack_family/core/shared/widgets/loading_widget.dart';
@@ -41,38 +47,53 @@ class ViewEvidenceScreen extends ConsumerWidget {
                 style: TextStyle(
                     fontFamily: 'Poppins', fontWeight: FontWeight.w600),
               ),
-              bottom: TabBar(
-                tabs: const [
-                  Tab(text: 'Por revisar'),
-                  Tab(text: 'Aprobadas'),
-                ],
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.white60,
-                indicator: BoxDecoration(
-                  color: AppColors.accentBlue,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                indicatorSize: TabBarIndicatorSize.tab,
-                dividerColor: Colors.transparent,
-                splashBorderRadius: BorderRadius.circular(20),
-                labelStyle: const TextStyle(
-                  fontFamily: 'Nunito',
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-                unselectedLabelStyle: const TextStyle(
-                  fontFamily: 'Nunito',
-                  fontWeight: FontWeight.w500,
-                  fontSize: 13,
+              // Ancho tope + centrado: sin esto, en una ventana ancha
+              // cada tab ocupa la mitad del appbar completo y la
+              // píldora del indicador queda enorme en vez de ajustada
+              // al texto.
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(kTextTabBarHeight),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 320),
+                    child: TabBar(
+                      tabs: const [
+                        Tab(text: 'Por revisar'),
+                        Tab(text: 'Aprobadas'),
+                      ],
+                      labelColor: Colors.white,
+                      unselectedLabelColor: Colors.white60,
+                      indicator: BoxDecoration(
+                        color: AppColors.accentBlue,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      dividerColor: Colors.transparent,
+                      splashBorderRadius: BorderRadius.circular(20),
+                      labelStyle: const TextStyle(
+                        fontFamily: 'Nunito',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                      unselectedLabelStyle: const TextStyle(
+                        fontFamily: 'Nunito',
+                        fontWeight: FontWeight.w500,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
           ],
-          body: const TabBarView(
-            children: [
-              _PendingReviewTab(),
-              _ApprovedTab(),
-            ],
+          body: CenteredConstrained(
+            maxWidth: 960,
+            child: const TabBarView(
+              children: [
+                _PendingReviewTab(),
+                _ApprovedTab(),
+              ],
+            ),
           ),
         ),
       ),
@@ -91,6 +112,9 @@ class _PendingReviewTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tasksAsync = ref.watch(taskProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final role = ref.watch(authProvider)?.role ?? UserRole.parent;
+    final studentName = ref.watch(activeStudentProvider)?.name ??
+        RoleCopy.dashboardFallbackName(role);
 
     return tasksAsync.when(
       data: (tasks) {
@@ -108,7 +132,7 @@ class _PendingReviewTab extends ConsumerWidget {
             emoji: '✅',
             title: 'Sin pendientes',
             subtitle:
-                'Cuando Yordan envíe una tarea aparecerá aquí para revisarla.',
+                'Cuando $studentName envíe una tarea aparecerá aquí para revisarla.',
           );
         }
 
@@ -143,8 +167,41 @@ class _ReviewCard extends ConsumerStatefulWidget {
 class _ReviewCardState extends ConsumerState<_ReviewCard> {
   bool _busy = false;
 
+  /// Aprobar/rechazar queda reservado al mismo rol que asignó la
+  /// tarea (ver firestore.rules: isReviewDecision/canReviewTask) —
+  /// esto solo refleja esa misma regla en la UI para no mostrar
+  /// botones que igual el servidor va a rechazar. Sin assignedByRole
+  /// (tareas viejas) cualquiera de los dos roles puede decidir.
+  bool get _canReview {
+    final role = widget.task.assignedByRole;
+    if (role == null || role.isEmpty) return true;
+    return ref.read(authProvider)?.role.name == role;
+  }
+
+  /// Confirma contra Firestore que la tarea sigue vigente antes de
+  /// aprobar/rechazar — otro padre/tutor pudo haberla eliminado
+  /// mientras esta pantalla estaba abierta, y el sync local a veces
+  /// tarda unos segundos en enterarse.
+  Future<bool> _verifyStillActive() async {
+    final stillActive =
+        await ref.read(taskProvider.notifier).isTaskStillActive(widget.task);
+    if (!stillActive && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Esta tarea ya fue eliminada.'),
+          backgroundColor: AppColors.statusRed,
+        ),
+      );
+    }
+    return stillActive;
+  }
+
   Future<void> _accept() async {
     setState(() => _busy = true);
+    if (!await _verifyStillActive()) {
+      if (mounted) setState(() => _busy = false);
+      return;
+    }
     await ref.read(taskProvider.notifier).acceptTask(widget.task.id);
     if (mounted) setState(() => _busy = false);
   }
@@ -154,6 +211,10 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
     if (reason == null) return;
 
     setState(() => _busy = true);
+    if (!await _verifyStillActive()) {
+      if (mounted) setState(() => _busy = false);
+      return;
+    }
     await ref.read(taskProvider.notifier).rejectTask(widget.task.id, reason: reason);
 
     // Doble capa: Admin ve confirmación interna, Estudiante recibe push + FCM
@@ -175,6 +236,7 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
 
   Future<String?> _showRejectDialog() async {
     final ctrl = TextEditingController();
+    final studentName = ref.read(activeStudentProvider)?.name ?? 'el estudiante';
     final reason = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -186,7 +248,7 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '¿Rechazar "${widget.task.title}"?\nYordan deberá corregirla y volver a enviarla.',
+              '¿Rechazar "${widget.task.title}"?\n$studentName deberá corregirla y volver a enviarla.',
               style: const TextStyle(fontFamily: 'Nunito'),
             ),
             const SizedBox(height: 12),
@@ -313,6 +375,11 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
                           ),
                         ),
                       const Spacer(),
+                      if (task.assignedByRole != null) ...[
+                        AssignedByBadge(
+                            assignedByRole: task.assignedByRole, compact: true),
+                        const SizedBox(width: 6),
+                      ],
                       Text(
                         task.subject,
                         style: TextStyle(
@@ -357,7 +424,7 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
                     ),
                   ],
 
-                  // Comentario de Yordan
+                  // Comentario de el estudiante
                   if (task.completionNote != null &&
                       task.completionNote!.isNotEmpty) ...[
                     const SizedBox(height: 10),
@@ -410,6 +477,37 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
                         width: 22,
                         height: 22,
                         child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  else if (!_canReview)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: (isDark ? Colors.white : AppColors.grey)
+                            .withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.lock_outline_rounded,
+                              size: 16,
+                              color: isDark ? Colors.white54 : AppColors.grey),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Solo ${UserRoleExt.fromName(task.assignedByRole).label} '
+                              'puede aprobar o rechazar esta tarea.',
+                              style: TextStyle(
+                                fontFamily: 'Nunito',
+                                fontSize: 12,
+                                color:
+                                    isDark ? Colors.white54 : AppColors.grey,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     )
                   else
@@ -487,8 +585,10 @@ class _PhotoGalleryState extends State<_PhotoGallery> {
       child: Stack(
         children: [
           // Imágenes
-          SizedBox(
+          Container(
             height: 200,
+            width: double.infinity,
+            color: widget.isDark ? Colors.white10 : AppColors.offWhite,
             child: PageView.builder(
               itemCount: widget.photos.length,
               onPageChanged: (i) => setState(() => _current = i),
@@ -496,8 +596,9 @@ class _PhotoGalleryState extends State<_PhotoGallery> {
                 onTap: () => _openGallery(context, i),
                 child: CachedLocalImage(
                   path: widget.photos[i],
-                  fit: BoxFit.cover,
+                  fit: BoxFit.contain,
                   width: double.infinity,
+                  height: 200,
                 ),
               ),
             ),
@@ -690,8 +791,8 @@ class _ApprovedTab extends ConsumerWidget {
 
         return GridView.builder(
           padding: const EdgeInsets.all(16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 280,
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
             childAspectRatio: 0.78,
@@ -964,19 +1065,23 @@ class _TaskDetailsExpansionState extends State<_TaskDetailsExpansion> {
                   ),
                 ],
 
-                // Imágenes de referencia
-                if (task.referenceImagePaths.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    '📷 Imágenes de referencia (${task.referenceImagePaths.length})',
-                    style: TextStyle(
-                      fontFamily: 'Nunito',
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white38 : AppColors.grey,
-                    ),
+                // Imágenes de referencia — siempre se muestra (con
+                // mensaje si no hay ninguna) en vez de omitirlo en
+                // silencio.
+                const SizedBox(height: 10),
+                Text(
+                  task.referenceImagePaths.isEmpty
+                      ? '📷 Imágenes de referencia'
+                      : '📷 Imágenes de referencia (${task.referenceImagePaths.length})',
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white38 : AppColors.grey,
                   ),
-                  const SizedBox(height: 6),
+                ),
+                const SizedBox(height: 6),
+                if (task.referenceImagePaths.isNotEmpty)
                   SizedBox(
                     height: 72,
                     child: ListView.separated(
@@ -993,8 +1098,37 @@ class _TaskDetailsExpansionState extends State<_TaskDetailsExpansion> {
                         ),
                       ),
                     ),
+                  )
+                else
+                  Container(
+                    width: double.infinity,
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white10 : AppColors.offWhite,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isDark ? Colors.white24 : AppColors.lightGrey,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.photo_camera_outlined,
+                            size: 16,
+                            color: isDark ? Colors.white38 : AppColors.grey),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Aún sin imagen de referencia',
+                          style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontSize: 12,
+                            color: isDark ? Colors.white38 : AppColors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
               ],
             ),
           ),

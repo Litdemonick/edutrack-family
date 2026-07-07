@@ -27,10 +27,12 @@ class NotificationService {
   Future<void> alertTaskNotDone({
     required String taskId,
     required String taskTitle,
+    String linkedPersonWord = 'hijo/a',
   }) async {
     await NotificationUtils.showTaskNotDoneAlert(
       taskId: taskId,
       taskTitle: taskTitle,
+      linkedPersonWord: linkedPersonWord,
     );
   }
 

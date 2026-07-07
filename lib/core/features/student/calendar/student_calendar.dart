@@ -8,6 +8,7 @@ import 'package:edutrack_family/core/data/local/models/event_model.dart';
 import 'package:edutrack_family/core/data/local/models/task_model.dart';
 import 'package:edutrack_family/core/providers/event_provider.dart';
 import 'package:edutrack_family/core/providers/task_provider.dart';
+import 'package:edutrack_family/core/responsive/breakpoints.dart';
 import 'package:edutrack_family/core/shared/widgets/empty_state.dart';
 import 'package:edutrack_family/core/shared/widgets/loading_widget.dart';
 import 'package:edutrack_family/core/features/student/calendar/widgets/calendar_task_item.dart';
@@ -129,70 +130,99 @@ class _StudentCalendarState extends ConsumerState<StudentCalendar>
     return CustomScrollView(
       slivers: [
         // ── AppBar con mes y navegación ──────────────────────
+        // Todo en un único `title` (en vez de title+actions
+        // separados) para poder centrar el bloque completo con
+        // centerTitle — así queda alineado con la tarjeta del
+        // calendario de abajo en vez de estirarse de punta a punta.
         SliverAppBar(
           automaticallyImplyLeading: false,
           pinned: true,
           expandedHeight: 0,
-          title: Text(
-            EduDateUtils.monthYearLabel(_focusedMonth),
-            style: const TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
+          centerTitle: true,
+          title: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  EduDateUtils.monthYearLabel(_focusedMonth),
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left_rounded),
+                      onPressed: () => setState(() {
+                        _focusedMonth = DateTime(
+                            _focusedMonth.year, _focusedMonth.month - 1);
+                      }),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right_rounded),
+                      onPressed: () => setState(() {
+                        _focusedMonth = DateTime(
+                            _focusedMonth.year, _focusedMonth.month + 1);
+                      }),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.chevron_left_rounded),
-              onPressed: () => setState(() {
-                _focusedMonth =
-                    DateTime(_focusedMonth.year, _focusedMonth.month - 1);
-              }),
-            ),
-            IconButton(
-              icon: const Icon(Icons.chevron_right_rounded),
-              onPressed: () => setState(() {
-                _focusedMonth =
-                    DateTime(_focusedMonth.year, _focusedMonth.month + 1);
-              }),
-            ),
-          ],
         ),
 
         // ── Calendario ──────────────────────────────────────
+        // Ancho máximo fijo: sin esto, en ventanas anchas (tablet/
+        // escritorio) el childAspectRatio de la grilla escala cada
+        // celda proporcional al ancho del contenedor y el calendario
+        // termina gigantesco.
         SliverToBoxAdapter(
-          child: _MiniCalendar(
-            focusedMonth: _focusedMonth,
-            selectedDay: _selectedDay,
-            taskDays: taskDays,
-            eventDays: eventDays,
-            blinkAnim: _blinkAnim,
-            isDark: isDark,
-            onDaySelected: (date) =>
-                _onDayTapped(context, date, tasks, events, isDark),
+          child: CenteredConstrained(
+            maxWidth: 480,
+            child: _MiniCalendar(
+              focusedMonth: _focusedMonth,
+              selectedDay: _selectedDay,
+              taskDays: taskDays,
+              eventDays: eventDays,
+              blinkAnim: _blinkAnim,
+              isDark: isDark,
+              onDaySelected: (date) =>
+                  _onDayTapped(context, date, tasks, events, isDark),
+            ),
           ),
         ),
 
         // ── Leyenda ──────────────────────────────────────────
+        // Center + mainAxisSize.min: sin esto, en ventana ancha el
+        // Row queda pegado a la izquierda mientras el calendario de
+        // arriba está centrado — se ve desalineado.
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(24, 14, 24, 4),
-            child: Row(
-              children: [
-                _LegendItem(
-                  color: AppColors.accentBlue,
-                  label: 'Tareas pendientes',
-                  blink: true,
-                  blinkAnim: _blinkAnim,
-                ),
-                const SizedBox(width: 20),
-                _LegendItem(
-                  color: const Color(0xFF7C4DFF),
-                  label: 'Eventos',
-                  blink: false,
-                  blinkAnim: _blinkAnim,
-                ),
-              ],
+            child: Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _LegendItem(
+                    color: AppColors.accentBlue,
+                    label: 'Tareas pendientes',
+                    blink: true,
+                    blinkAnim: _blinkAnim,
+                  ),
+                  const SizedBox(width: 20),
+                  _LegendItem(
+                    color: const Color(0xFF7C4DFF),
+                    label: 'Eventos',
+                    blink: false,
+                    blinkAnim: _blinkAnim,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -201,23 +231,26 @@ class _StudentCalendarState extends ConsumerState<StudentCalendar>
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(24, 5, 24, 24),
-            child: Row(
-              children: [
+            child: Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                 Icon(
                   Icons.touch_app_outlined,
                   size: 13,
                   color: isDark ? Colors.white30 : AppColors.grey,
                 ),
-                const SizedBox(width: 5),
-                Text(
-                  'Toca cualquier día para ver el detalle',
-                  style: TextStyle(
-                    fontFamily: 'Nunito',
-                    fontSize: 12,
-                    color: isDark ? Colors.white38 : AppColors.grey,
+                  const SizedBox(width: 5),
+                  Text(
+                    'Toca cualquier día para ver el detalle',
+                    style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontSize: 12,
+                      color: isDark ? Colors.white38 : AppColors.grey,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -310,7 +343,7 @@ class _MiniCalendar extends StatelessWidget {
               crossAxisCount: 7,
               mainAxisSpacing: 2,
               crossAxisSpacing: 0,
-              childAspectRatio: 0.75,
+              mainAxisExtent: 50,
             ),
             itemCount: startOffset + daysInMonth,
             itemBuilder: (context, index) {

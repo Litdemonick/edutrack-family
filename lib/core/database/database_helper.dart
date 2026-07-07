@@ -19,7 +19,7 @@ class DatabaseHelper {
   static Database? _db;
 
   static const String _dbName = 'edutrack_v2.db';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 4;
 
   /// Nombre del archivo v1 que se elimina en el primer arranque 2.0.
   static const String legacyDbName = 'edutrack.db';
@@ -59,7 +59,37 @@ class DatabaseHelper {
       version: _dbVersion,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // MIGRACIONES — ALTER TABLE ADD COLUMN, nunca se borra nada
+  // ─────────────────────────────────────────────────────────────
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Quién creó la tarea/evento (padre/tutor o profesor) — para
+      // mostrar "Creado por: ..." en el detalle.
+      await db.execute('ALTER TABLE $tableTask ADD COLUMN assigned_by_role TEXT');
+      await db.execute('ALTER TABLE $tableTask ADD COLUMN assigned_by_name TEXT');
+      await db.execute('ALTER TABLE $tableEvent ADD COLUMN assigned_by TEXT');
+      await db.execute('ALTER TABLE $tableEvent ADD COLUMN assigned_by_role TEXT');
+      await db.execute('ALTER TABLE $tableEvent ADD COLUMN assigned_by_name TEXT');
+    }
+    if (oldVersion < 3) {
+      // Cédula del hijo/a — obligatoria para perfiles nuevos, ver
+      // child_form_sheet.dart. Perfiles ya existentes quedan sin ella
+      // hasta que el padre edite el perfil.
+      await db.execute('ALTER TABLE $tableStudent ADD COLUMN cedula TEXT');
+    }
+    if (oldVersion < 4) {
+      // Quién creó/editó por última vez cada bloque del horario —
+      // igual que assigned_by* en tareas/eventos, solo para mostrar.
+      await db.execute('ALTER TABLE $tableScheduleBlock ADD COLUMN assigned_by TEXT');
+      await db.execute('ALTER TABLE $tableScheduleBlock ADD COLUMN assigned_by_role TEXT');
+      await db.execute('ALTER TABLE $tableScheduleBlock ADD COLUMN assigned_by_name TEXT');
+    }
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -72,6 +102,7 @@ class DatabaseHelper {
       CREATE TABLE $tableStudent (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
+        cedula TEXT,
         grade TEXT,
         avatar_color INTEGER,
         photo_path TEXT,
@@ -103,6 +134,8 @@ class DatabaseHelper {
         has_reference_images INTEGER NOT NULL DEFAULT 0,
         conversation_history TEXT,
         assigned_by TEXT,
+        assigned_by_role TEXT,
+        assigned_by_name TEXT,
         completed_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
@@ -124,6 +157,9 @@ class DatabaseHelper {
         end_date TEXT,
         is_all_day INTEGER NOT NULL DEFAULT 1,
         reminder_minutes_before INTEGER NOT NULL DEFAULT 60,
+        assigned_by TEXT,
+        assigned_by_role TEXT,
+        assigned_by_name TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         is_deleted INTEGER NOT NULL DEFAULT 0,
@@ -131,7 +167,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // Horario semanal data-driven (reemplaza el YordanSchedule hardcodeado)
+    // Horario semanal data-driven (reemplaza el ScheduleBlock (horario v1) hardcodeado)
     await db.execute('''
       CREATE TABLE $tableScheduleBlock (
         id TEXT PRIMARY KEY,
@@ -144,7 +180,10 @@ class DatabaseHelper {
         color INTEGER,
         updated_at TEXT NOT NULL,
         is_deleted INTEGER NOT NULL DEFAULT 0,
-        is_dirty INTEGER NOT NULL DEFAULT 0
+        is_dirty INTEGER NOT NULL DEFAULT 0,
+        assigned_by TEXT,
+        assigned_by_role TEXT,
+        assigned_by_name TEXT
       )
     ''');
 
@@ -269,6 +308,14 @@ class DatabaseHelper {
   Future<void> deleteAll(String table) async {
     final db = await database;
     await db.delete(table);
+  }
+
+  /// Borra todas las filas de [table] con ese student_id — usar al
+  /// eliminar un hijo/a para limpiar tareas/eventos/horario/evidencias
+  /// locales que ya no tienen dueño.
+  Future<void> deleteWhereStudent(String table, String studentId) async {
+    final db = await database;
+    await db.delete(table, where: 'student_id = ?', whereArgs: [studentId]);
   }
 
   /// Marca/desmarca el flag de cambio local pendiente de sync.

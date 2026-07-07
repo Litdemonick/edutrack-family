@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:edutrack_family/core/constants/app_colors.dart';
+import 'package:edutrack_family/core/constants/utils/date_utils.dart';
 import 'package:edutrack_family/core/data/local/models/app_user_model.dart';
 import 'package:edutrack_family/core/providers/auth_provider.dart';
+import 'package:edutrack_family/core/utils/input_sanitizer.dart';
 import 'widgets/auth_widgets.dart';
 
 // ═══════════════════════════════════════════════════════════════
@@ -62,6 +64,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       lastDate: now,
       helpText: 'Tu fecha de nacimiento',
       locale: const Locale('es'),
+      builder: EduDateUtils.clampPickerTextScale,
     );
     if (picked != null) setState(() => _dob = picked);
   }
@@ -78,16 +81,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           'Los estudiantes entran con el código que genera su padre o tutor.');
       return;
     }
-    if (_passCtrl.text != _pass2Ctrl.text) {
+    final email = InputSanitizer.clean(_emailCtrl.text);
+    final password = InputSanitizer.clean(_passCtrl.text);
+    final password2 = InputSanitizer.clean(_pass2Ctrl.text);
+    final name = InputSanitizer.clean(_nameCtrl.text);
+
+    if (password != password2) {
       _showError('Las contraseñas no coinciden');
       return;
     }
 
     setState(() => _loading = true);
     final result = await ref.read(authProvider.notifier).registerAdult(
-          email: _emailCtrl.text,
-          password: _passCtrl.text,
-          displayName: _nameCtrl.text,
+          email: email,
+          password: password,
+          displayName: name,
           role: _role,
           dobYear: _dob!.year,
         );
@@ -183,10 +191,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             const SizedBox(height: 14),
             AuthTextField(
               controller: _passCtrl,
-              label: 'Contraseña (mínimo 6)',
+              label: 'Contraseña (8+, mayúscula y número)',
               icon: Icons.lock_outline,
               obscure: _obscure,
-              validator: AuthValidators.password,
+              validator: AuthValidators.newPassword,
               suffix: IconButton(
                 icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
                 onPressed: () => setState(() => _obscure = !_obscure),
@@ -198,7 +206,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               label: 'Confirmar contraseña',
               icon: Icons.lock_outline,
               obscure: true,
-              validator: AuthValidators.password,
+              validator: AuthValidators.newPassword,
               textInputAction: TextInputAction.done,
               onSubmitted: (_) => _register(),
             ),

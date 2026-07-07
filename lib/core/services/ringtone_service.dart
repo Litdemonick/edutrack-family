@@ -14,6 +14,7 @@ class RingtoneService {
 
   static const _chRingtone = MethodChannel('com.edutrack/ringtone');
   static const _chVibrate  = MethodChannel('com.edutrack/vibrate');
+  static const _chAlarm    = MethodChannel('com.edutrack/alarm');
 
   bool get _isAndroid => !kIsWeb && Platform.isAndroid;
 
@@ -87,6 +88,35 @@ class RingtoneService {
       await _chVibrate.invokeMethod<void>('vibrate', {'pattern': pattern});
     } on PlatformException catch (e) {
       debugPrint('[RingtoneService] vibrate error: $e');
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // ALARMA EN BUCLE — check-in "¿Estás bien?"
+  // A diferencia de play() (suena una sola vez, para previsualizar
+  // el tono elegido), esto repite el sonido de alarma sin parar
+  // hasta llamar a stopAlarmLoop() — usa el mismo canal de volumen
+  // que un despertador (suena aunque el celular esté en silencio).
+  // ─────────────────────────────────────────────────────────────
+
+  // sound: nombre del raw resource sin extensión — 'alert_sound'
+  // (check-in "¿Estás bien?", default) o 'alerta_sismica' (sismo,
+  // sonido propio distinto para no confundir ambas alertas).
+  Future<void> startAlarmLoop({String sound = 'alert_sound'}) async {
+    if (!_isAndroid) return;
+    try {
+      await _chAlarm.invokeMethod<void>('loop', {'sound': sound});
+    } on PlatformException catch (e) {
+      debugPrint('[RingtoneService] startAlarmLoop error: $e');
+    }
+  }
+
+  Future<void> stopAlarmLoop() async {
+    if (!_isAndroid) return;
+    try {
+      await _chAlarm.invokeMethod<void>('stop');
+    } on PlatformException catch (e) {
+      debugPrint('[RingtoneService] stopAlarmLoop error: $e');
     }
   }
 }

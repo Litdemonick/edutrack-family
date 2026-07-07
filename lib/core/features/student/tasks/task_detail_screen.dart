@@ -8,16 +8,18 @@ import 'package:edutrack_family/core/constants/app_colors.dart';
 import 'package:edutrack_family/core/constants/app_routes.dart';
 import 'package:edutrack_family/core/constants/app_strings.dart';
 import 'package:edutrack_family/core/constants/utils/date_utils.dart';
+import 'package:edutrack_family/core/data/local/models/app_user_model.dart';
 import 'package:edutrack_family/core/data/local/models/task_model.dart';
 import 'package:edutrack_family/core/database/database_helper.dart';
 import 'package:edutrack_family/core/services/evidence_image_service.dart';
 import 'package:edutrack_family/core/features/student/dashboard/widgets/traffic_light_badge.dart';
 import 'package:edutrack_family/core/shared/widgets/cached_local_image.dart';
 import 'package:edutrack_family/core/shared/widgets/fullscreen_image_viewer.dart';
+import 'package:edutrack_family/core/utils/role_copy.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // TASK DETAIL SCREEN — EduTrack Family
-// Detalle completo de una tarea para el estudiante Yordan.
+// Detalle completo de una tarea para el estudiante el estudiante.
 // Al abrirse, descarga imágenes de referencia del Admin si no
 // están ya guardadas localmente.
 // ═══════════════════════════════════════════════════════════════
@@ -192,6 +194,22 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                           value: _task.subject,
                           isDark: isDark,
                         ),
+                        if (_task.assignedByName != null &&
+                            _task.assignedByName!.isNotEmpty) ...[
+                          Divider(
+                            color: isDark ? Colors.white12 : AppColors.lightGrey,
+                            height: 16,
+                          ),
+                          _DetailRow(
+                            icon: Icons.person_outline_rounded,
+                            label: 'Creado por',
+                            value: _task.assignedByRole != null
+                                ? '${_task.assignedByName} '
+                                    '(${UserRoleExt.fromName(_task.assignedByRole).label})'
+                                : _task.assignedByName!,
+                            isDark: isDark,
+                          ),
+                        ],
                         Divider(
                           color: isDark ? Colors.white12 : AppColors.lightGrey,
                           height: 16,
@@ -238,10 +256,16 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                               ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(10),
-                                child: CachedLocalImage(
-                                  path: _task.referenceImagePaths.first,
+                                child: Container(
+                                  height: 220,
                                   width: double.infinity,
-                                  fit: BoxFit.cover,
+                                  color: isDark ? Colors.white10 : AppColors.offWhite,
+                                  child: CachedLocalImage(
+                                    path: _task.referenceImagePaths.first,
+                                    width: double.infinity,
+                                    height: 220,
+                                    fit: BoxFit.contain,
+                                  ),
                                 ),
                               ),
                             )
@@ -337,11 +361,16 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                               ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(10),
-                                child: CachedLocalImage(
-                                  path: _task.evidencePhotoPaths.first,
-                                  height: 180,
+                                child: Container(
+                                  height: 220,
                                   width: double.infinity,
-                                  fit: BoxFit.cover,
+                                  color: isDark ? Colors.white10 : AppColors.offWhite,
+                                  child: CachedLocalImage(
+                                    path: _task.evidencePhotoPaths.first,
+                                    height: 220,
+                                    width: double.infinity,
+                                    fit: BoxFit.contain,
+                                  ),
                                 ),
                               ),
                             )
@@ -395,7 +424,37 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                   const SizedBox(height: 16),
 
                   // Botones de acción
-                  if (!_task.isCompleted)
+                  if (_task.isInReview)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF7C4DFF).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: const Color(0xFF7C4DFF).withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.hourglass_top_rounded,
+                              size: 18, color: Color(0xFF7C4DFF)),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Esperando revisión de '
+                            '${RoleCopy.actorLabelForStudent(_task.assignedByRole)}',
+                            style: const TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF7C4DFF),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (!_task.isCompleted)
                     SizedBox(
                       width: double.infinity,
                       height: 52,

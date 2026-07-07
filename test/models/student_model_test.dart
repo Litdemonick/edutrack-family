@@ -18,6 +18,7 @@ void main() {
       final student = StudentProfile(
         id: 's1',
         name: 'Yordan',
+        cedula: '8-888-8888',
         grade: '5° B',
         parentIds: const ['parent-1', 'parent-2'],
         teacherIds: const ['teacher-1'],
@@ -30,6 +31,7 @@ void main() {
 
       final restored = StudentProfile.fromMap(student.toMap());
 
+      expect(restored.cedula, '8-888-8888');
       expect(restored.parentIds, student.parentIds);
       expect(restored.teacherIds, student.teacherIds);
       expect(restored.locationSharingEnabled, isTrue);
@@ -42,6 +44,7 @@ void main() {
       final student = StudentProfile(
         id: 's1',
         name: 'Yordan',
+        cedula: '8-888-8888',
         parentIds: const ['parent-1'],
         locationSharingEnabled: true,
         locationDeviceConfirmed: true,
@@ -51,6 +54,7 @@ void main() {
       final data = student.toFirestore();
       final restored = StudentProfile.fromFirestore(data, 's1');
 
+      expect(restored.cedula, '8-888-8888');
       expect(restored.locationSharingEnabled, isTrue);
       expect(restored.locationDeviceConfirmed, isTrue);
       expect(restored.parentIds, contains('parent-1'));

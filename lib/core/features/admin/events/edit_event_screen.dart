@@ -6,6 +6,7 @@ import 'package:edutrack_family/core/constants/app_strings.dart';
 import 'package:edutrack_family/core/constants/utils/date_utils.dart';
 import 'package:edutrack_family/core/data/local/models/event_model.dart';
 import 'package:edutrack_family/core/providers/event_provider.dart';
+import 'package:edutrack_family/core/responsive/breakpoints.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // EDIT EVENT SCREEN — EduTrack Family
@@ -61,6 +62,7 @@ class _EditEventScreenState extends ConsumerState<EditEventScreen> {
       firstDate: first,
       lastDate: DateTime.now().add(const Duration(days: 365)),
       locale: const Locale('es'),
+      builder: EduDateUtils.clampPickerTextScale,
     );
     if (picked == null || !mounted) return;
 
@@ -71,6 +73,7 @@ class _EditEventScreenState extends ConsumerState<EditEventScreen> {
           : TimeOfDay.fromDateTime(_date),
       helpText: 'Hora del evento (opcional)',
       cancelText: 'Todo el día',
+      builder: EduDateUtils.clampPickerTextScale,
       confirmText: 'Aceptar',
     );
 
@@ -135,7 +138,9 @@ class _EditEventScreenState extends ConsumerState<EditEventScreen> {
           ),
         ],
       ),
-      body: Form(
+      body: CenteredConstrained(
+        maxWidth: 640,
+        child: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -339,6 +344,7 @@ class _EditEventScreenState extends ConsumerState<EditEventScreen> {
             ),
             const SizedBox(height: 24),
           ],
+        ),
         ),
       ),
     );

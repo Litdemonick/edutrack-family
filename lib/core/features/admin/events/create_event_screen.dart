@@ -6,6 +6,9 @@ import 'package:edutrack_family/core/constants/app_strings.dart';
 import 'package:edutrack_family/core/constants/utils/date_utils.dart';
 import 'package:edutrack_family/core/data/local/models/event_model.dart';
 import 'package:edutrack_family/core/providers/event_provider.dart';
+import 'package:edutrack_family/core/providers/family_provider.dart';
+import 'package:edutrack_family/core/responsive/breakpoints.dart';
+import 'package:edutrack_family/core/shared/widgets/no_student_gate.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // CREATE EVENT SCREEN — EduTrack Family
@@ -47,6 +50,7 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
       firstDate: first,
       lastDate: DateTime.now().add(const Duration(days: 365)),
       locale: const Locale('es'),
+      builder: EduDateUtils.clampPickerTextScale,
     );
     if (picked == null || !mounted) return;
 
@@ -58,6 +62,7 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
       helpText: 'Hora del evento (opcional)',
       cancelText: 'Todo el día',
       confirmText: 'Aceptar',
+      builder: EduDateUtils.clampPickerTextScale,
     );
 
     setState(() {
@@ -96,6 +101,10 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Sin ningún estudiante vinculado no hay a quién asignarle el
+    // evento — bloquear con un mensaje claro en vez de dejar que
+    // "Guardar" no haga nada en silencio.
+    final noStudents = ref.watch(linkedStudentsProvider).isEmpty;
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF12121E) : AppColors.background,
@@ -109,14 +118,19 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
           style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
         ),
         actions: [
-          TextButton(
-            onPressed: _isSaving ? null : _save,
-            child: const Text('Guardar',
-                style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600)),
-          ),
+          if (!noStudents)
+            TextButton(
+              onPressed: _isSaving ? null : _save,
+              child: const Text('Guardar',
+                  style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600)),
+            ),
         ],
       ),
-      body: Form(
+      body: noStudents
+          ? const NoStudentGateBody()
+          : CenteredConstrained(
+        maxWidth: 640,
+        child: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -321,6 +335,7 @@ class _CreateEventScreenState extends ConsumerState<CreateEventScreen> {
             ),
             const SizedBox(height: 24),
           ],
+        ),
         ),
       ),
     );

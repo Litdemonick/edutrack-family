@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:edutrack_family/core/constants/app_colors.dart';
 import 'package:edutrack_family/core/constants/app_routes.dart';
 import 'package:edutrack_family/core/constants/utils/date_utils.dart';
+import 'package:edutrack_family/core/data/local/models/app_user_model.dart';
 import 'package:edutrack_family/core/data/local/models/event_model.dart';
+import 'package:edutrack_family/core/providers/auth_provider.dart';
 import 'package:edutrack_family/core/providers/event_provider.dart';
 import 'package:edutrack_family/core/shared/widgets/confirmation_dialog.dart';
 
@@ -32,6 +34,10 @@ class EventDetailScreen extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = _statusColor;
     final chipsTop = MediaQuery.of(context).padding.top + kToolbarHeight + 10;
+    // Editar/eliminar reservado a quien creó el evento — el resto lo
+    // ve pero no lo toca (misma regla que ya aplica el servidor).
+    final isCreator = event.assignedBy == null ||
+        event.assignedBy == ref.watch(authProvider)?.uid;
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF12121E) : AppColors.background,
@@ -47,7 +53,7 @@ class EventDetailScreen extends ConsumerWidget {
               onPressed: () => context.pop(),
             ),
             actions: [
-              if (isAdmin)
+              if (isAdmin && isCreator)
                 IconButton(
                   icon: const Icon(Icons.edit_rounded, color: Colors.white),
                   tooltip: 'Editar evento',
@@ -193,6 +199,19 @@ class EventDetailScreen extends ConsumerWidget {
                           isDark: isDark,
                           valueColor: color,
                         ),
+                        if (event.assignedByName != null &&
+                            event.assignedByName!.isNotEmpty) ...[
+                          _Divider(isDark: isDark),
+                          _InfoRow(
+                            icon: Icons.person_outline_rounded,
+                            label: 'Creado por',
+                            value: event.assignedByRole != null
+                                ? '${event.assignedByName} '
+                                    '(${UserRoleExt.fromName(event.assignedByRole).label})'
+                                : event.assignedByName!,
+                            isDark: isDark,
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -233,48 +252,69 @@ class EventDetailScreen extends ConsumerWidget {
 
                   // ── Botones de acción (admin) ────────────────
                   if (isAdmin) ...[
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.navyBlue,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                    if (isCreator) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.navyBlue,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          onPressed: () {
+                            context.pop();
+                            context.push(AppRoutes.adminEditEventPath(event.id), extra: event);
+                          },
+                          icon: const Icon(Icons.edit_rounded),
+                          label: const Text(
+                            'Editar evento',
+                            style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
                           ),
                         ),
-                        onPressed: () {
-                          context.pop();
-                          context.push(AppRoutes.adminEditEventPath(event.id), extra: event);
-                        },
-                        icon: const Icon(Icons.edit_rounded),
-                        label: const Text(
-                          'Editar evento',
-                          style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
-                        ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.statusRed,
-                          side: const BorderSide(color: AppColors.statusRed),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.statusRed,
+                            side: const BorderSide(color: AppColors.statusRed),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          onPressed: () => _confirmDelete(context, ref),
+                          icon: const Icon(Icons.delete_outline_rounded),
+                          label: const Text(
+                            'Eliminar evento',
+                            style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
                           ),
                         ),
-                        onPressed: () => _confirmDelete(context, ref),
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        label: const Text(
-                          'Eliminar evento',
-                          style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600),
+                      ),
+                    ] else
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.lock_outline_rounded,
+                                size: 14, color: Colors.grey.shade600),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Solo quien lo creó puede modificarlo o eliminarlo',
+                              style: TextStyle(
+                                fontFamily: 'Nunito',
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
                   ],
                 ],
               ),

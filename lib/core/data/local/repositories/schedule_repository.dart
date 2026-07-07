@@ -7,7 +7,7 @@ import 'package:edutrack_family/core/firebase/firestore_service.dart';
 // ═══════════════════════════════════════════════════════════════
 // SCHEDULE REPOSITORY — EduTrack Family 2.0
 // Horario semanal DATA-DRIVEN por estudiante (SQLite + Firestore).
-// Reemplaza al YordanSchedule hardcodeado de la v1.
+// Reemplaza al ScheduleBlock (horario v1) hardcodeado de la v1.
 // ═══════════════════════════════════════════════════════════════
 
 class ScheduleRepository {
@@ -66,6 +66,9 @@ class ScheduleRepository {
     required String subject,
     bool isBreak = false,
     int? color,
+    String? assignedBy,
+    String? assignedByRole,
+    String? assignedByName,
   }) async {
     final block = ScheduleBlock(
       id: const Uuid().v4(),
@@ -77,6 +80,9 @@ class ScheduleRepository {
       isBreak: isBreak,
       color: color,
       updatedAt: DateTime.now(),
+      assignedBy: assignedBy,
+      assignedByRole: assignedByRole,
+      assignedByName: assignedByName,
     );
     final map = block.toMap();
     map['is_dirty'] = 1;

@@ -101,11 +101,18 @@ class TrackingService {
         permission == LocationPermission.deniedForever) {
       return 'Activa el permiso de ubicación en Ajustes';
     }
-    // Para tracking con app cerrada se necesita "Permitir siempre"
+    // Para tracking con app cerrada se necesita "Permitir siempre" —
+    // Android traduce esa opción distinto según versión/OEM
+    // ("Permitir siempre" en unos, "Permitido todo el tiempo" en
+    // otros), así que se mencionan las dos para que se reconozca el
+    // botón sea cual sea el texto exacto en ese celular. El
+    // `.contains('Permitir siempre')` en location_permission_help.dart
+    // sigue funcionando porque esa frase se mantiene tal cual.
     if (permission == LocationPermission.whileInUse) {
       permission = await Geolocator.requestPermission();
       if (permission != LocationPermission.always) {
-        return 'Elige "Permitir siempre" en Ajustes → Ubicación';
+        return 'Elige "Permitir siempre" (o "Permitido todo el tiempo") '
+            'en Ajustes → Ubicación';
       }
     }
 

@@ -62,6 +62,18 @@ class NotificationUtils {
   static const String channelSystemDesc =
       'Avisos de acciones dentro de EduTrack';
 
+  /// Canal de seguridad — check-in "¿Estás bien?" y alerta sísmica.
+  /// A propósito NO comparte canal con "Alertas urgentes" (tareas
+  /// vencidas): ese respeta la preferencia general de sonido/
+  /// vibración del usuario, pero un aviso de seguridad no debería
+  /// poder silenciarse sin querer solo porque alguien apagó el
+  /// sonido general de notificaciones. Sonido y vibración van
+  /// SIEMPRE fijos acá, sin leer ninguna preferencia.
+  static const String channelSafetyId = 'edutrack_safety';
+  static const String channelSafetyName = 'Alertas de seguridad';
+  static const String channelSafetyDesc =
+      'Check-in "¿Estás bien?" y alerta sísmica — siempre con sonido';
+
   // ─────────────────────────────────────────────────────────────
   // RANGOS DE IDs DE NOTIFICACIÓN
   // Cada tipo usa un rango distinto para no colisionar
@@ -148,9 +160,10 @@ class NotificationUtils {
     String? payload,
     bool isUrgent = false,
     String? taskId,
+    String? eventId,
     NotificationType? notifType,
   }) async {
-    final id    = _deterministicId(taskId, eventId: null, notifType: notifType)
+    final id    = _deterministicId(taskId, eventId: eventId, notifType: notifType)
         ?? DateTime.now().millisecondsSinceEpoch % 90000 + 10000;
     final sound = await _soundEnabled();
     await _showImmediateNotification(
@@ -171,6 +184,39 @@ class NotificationUtils {
   }
 
   // ─────────────────────────────────────────────────────────────
+  // ALERTA DE SEGURIDAD — check-in "¿Estás bien?" y sismo
+  // Sonido y vibración SIEMPRE encendidos (canal propio, no lee
+  // _soundEnabled()/_vibrationEnabled() — ver comentario en
+  // channelSafetyId de por qué esto no debe poder silenciarse).
+  // ─────────────────────────────────────────────────────────────
+
+  static Future<void> showSafetyAlert({
+    required String title,
+    required String body,
+    bool requireConfirm = false,
+    String? payload,
+  }) async {
+    final id = DateTime.now().millisecondsSinceEpoch % 90000 + 10000;
+    await _showImmediateNotification(
+      id: id,
+      title: title,
+      body: body,
+      channelId: channelSafetyId,
+      channelName: channelSafetyName,
+      channelDesc: channelSafetyDesc,
+      importance: Importance.max,
+      priority: Priority.max,
+      playSound: true,
+      enableVibration: true,
+      vibrationPattern: _vibrationUrgent,
+      payload: payload,
+      ongoing: requireConfirm,
+      autoCancel: !requireConfirm,
+      fullScreenIntent: true,
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
   // NOTIFICACIÓN URGENTE — vencimiento o alerta crítica
   // Vibración fuerte, fullScreenIntent, ongoing si requireConfirm
   // ─────────────────────────────────────────────────────────────
@@ -181,9 +227,10 @@ class NotificationUtils {
     bool requireConfirm = false,
     String? payload,
     String? taskId,
+    String? eventId,
     NotificationType? notifType,
   }) async {
-    final id = _deterministicId(taskId, eventId: null, notifType: notifType)
+    final id = _deterministicId(taskId, eventId: eventId, notifType: notifType)
         ?? DateTime.now().millisecondsSinceEpoch % 90000 + 10000;
     final sound = await _soundEnabled();
 
@@ -307,16 +354,17 @@ class NotificationUtils {
   }
 
   // ─────────────────────────────────────────────────────────────
-  // NOTIFICACIÓN INMEDIATA — admin alerta que Yordan no hizo tarea
-  // Se dispara cuando el admin ve que Yordan no completó una tarea
+  // NOTIFICACIÓN INMEDIATA — admin alerta que el estudiante no hizo tarea
+  // Se dispara cuando el admin ve que el estudiante no completó una tarea
   // que está próxima a vencer
   // ─────────────────────────────────────────────────────────────
 
-  /// Muestra inmediatamente una notificación al admin/Yordan
+  /// Muestra inmediatamente una notificación al admin/el estudiante
   /// indicando que la tarea no está completada.
   static Future<void> showTaskNotDoneAlert({
     required String taskId,
     required String taskTitle,
+    String linkedPersonWord = 'hijo/a',
   }) async {
     final notifId = _adminNotifId(taskId);
     final sound = await _soundEnabled();
@@ -324,7 +372,7 @@ class NotificationUtils {
 
     await _showImmediateNotification(
       id: notifId,
-      title: AppStrings.notifTaskNotDone,
+      title: AppStrings.notifTaskNotDone(linkedPersonWord),
       body: AppStrings.notifTaskNotDoneBody(taskTitle),
       channelId: channelUrgentId,
       channelName: channelUrgentName,
@@ -478,6 +526,28 @@ class NotificationUtils {
       enableLights: true,
       ledColor: const Color(0xFF2196F3),
     ));
+
+    // Canal de seguridad — NO se borra/recrea con el resto (arriba)
+    // porque su sonido/vibración nunca dependen de las preferencias
+    // del usuario; createNotificationChannel() con el mismo id no
+    // hace nada si ya existe igual, así que es seguro llamarlo en
+    // cada arranque sin más.
+    await plugin.createNotificationChannel(AndroidNotificationChannel(
+      channelSafetyId, channelSafetyName,
+      description: channelSafetyDesc,
+      importance: Importance.max,
+      sound: const RawResourceAndroidNotificationSound('alert_sound'),
+      enableVibration: true,
+      vibrationPattern: _vibrationUrgent,
+      showBadge: true,
+      enableLights: true,
+      ledColor: const Color(0xFFF44336),
+      // USAGE_ALARM en vez de USAGE_NOTIFICATION (el default): el
+      // volumen de "alarma" es un canal de audio SEPARADO del de
+      // notificaciones/timbre en Android — con esto suena aunque el
+      // celular esté en modo silencio/vibrar, igual que un despertador.
+      audioAttributesUsage: AudioAttributesUsage.alarm,
+    ));
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -506,12 +576,39 @@ class NotificationUtils {
     await app.flutterLocalNotificationsPlugin.cancelAll();
   }
 
-  /// Cancela las notificaciones del sistema mostradas en la bandeja (IDs 5000–5999).
+  static const _keyShownSystemIds = 'shown_system_notification_ids';
+
+  /// Registra un ID como "mostrado en la bandeja" — se llama al final
+  /// de _showImmediateNotification (la única vía por la que se llega
+  /// a un ID de este rango). Persistido para que sobreviva un
+  /// reinicio de la app.
+  static Future<void> _markShown(int id) async {
+    final p = await SharedPreferences.getInstance();
+    final ids = p.getStringList(_keyShownSystemIds) ?? [];
+    if (!ids.contains('$id')) {
+      await p.setStringList(_keyShownSystemIds, [...ids, '$id']);
+    }
+  }
+
+  /// Cancela SOLO las notificaciones del sistema que de verdad se
+  /// mostraron (registro persistido en _markShown), no un barrido a
+  /// ciegas de los ~1000 IDs posibles del rango 5000-5999. Ese barrido
+  /// (incluso paralelizado) seguía siendo lento en Windows/Linux —
+  /// cada llamada al plugin ahí pesa más que en Android, y 1000
+  /// llamadas (aunque disparadas a la vez) igual saturaban el canal
+  /// nativo. Con esto, normalmente son 0-3 llamadas reales, no 1000.
   /// No afecta recordatorios programados de tareas ni eventos.
   static Future<void> cancelSystemNotifications() async {
-    for (int id = 5000; id < 6000; id++) {
-      await app.flutterLocalNotificationsPlugin.cancel(id: id);
-    }
+    final p = await SharedPreferences.getInstance();
+    final ids = p.getStringList(_keyShownSystemIds) ?? [];
+    if (ids.isEmpty) return;
+    await Future.wait([
+      for (final raw in ids)
+        app.flutterLocalNotificationsPlugin
+            .cancel(id: int.parse(raw))
+            .catchError((_) {}),
+    ]);
+    await p.remove(_keyShownSystemIds);
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -665,6 +762,7 @@ class NotificationUtils {
       notificationDetails: NotificationDetails(android: androidDetails, iOS: iosDetails),
       payload: payload,
     );
+    await _markShown(id);
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -714,12 +812,21 @@ class NotificationUtils {
   // ─────────────────────────────────────────────────────────────
 
   /// Genera un ID determinístico para notificaciones del sistema.
-  /// Mismo [taskId] + mismo [notifType] → mismo ID → flutter_local_notifications
-  /// reemplaza en vez de duplicar. Retorna null si no hay identificador útil.
+  /// Mismo [taskId] (sin importar [notifType]) → mismo ID →
+  /// flutter_local_notifications reemplaza en vez de apilar. Antes
+  /// [notifType] SÍ entraba en el cálculo, así que el push directo a
+  /// una tarea (notifType general) y el eco en tiempo real de esa
+  /// misma tarea (notifType específico, ej. taskAssigned) sacaban IDs
+  /// distintos — cuando los dos llegaban casi juntos (algo normal),
+  /// terminaban como DOS notificaciones separadas en vez de que la
+  /// segunda reemplace a la primera. Con la misma clave para toda la
+  /// tarea, como mucho se ve una sola — y si solo llega uno de los
+  /// dos caminos (el otro se perdió por timing), esa igual se ve, en
+  /// vez de arriesgarse a que ninguno la muestre.
   static int? _deterministicId(String? taskId, {String? eventId, NotificationType? notifType}) {
     final key = taskId ?? eventId;
     if (key == null) return null;
-    return 5000 + (key.hashCode.abs() % 900) + (notifType?.index ?? 0);
+    return 5000 + (key.hashCode.abs() % 900);
   }
 
   /// Genera un ID de notificación único para una tarea y un índice.

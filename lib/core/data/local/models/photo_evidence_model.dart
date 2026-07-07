@@ -3,7 +3,7 @@ import 'package:edutrack_family/core/constants/utils/date_utils.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // PHOTO EVIDENCE MODEL — EduTrack Family
-// Representa la foto que Yordan toma como evidencia
+// Representa la foto que el estudiante toma como evidencia
 // de que completó una tarea.
 // ═══════════════════════════════════════════════════════════════
 
