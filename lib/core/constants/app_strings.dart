@@ -12,7 +12,7 @@ class AppStrings {
   // ─────────────────────────────────────────────────────────────
   static const String appName = 'EduTrack Family';
   static const String appTagline = 'Organiza. Aprende. Logra.';
-  static const String appVersion = '1.0.1';
+  static const String appVersion = '2.0.1';
 
   // ─────────────────────────────────────────────────────────────
   // AUTH — PANTALLA DE LOGIN
