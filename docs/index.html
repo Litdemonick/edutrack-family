@@ -177,6 +177,22 @@
     line-height: 1.6;
   }
 
+  .warn-box {
+    background: #FFF8E1;
+    border: 1px solid #F5D98B;
+    border-radius: 14px;
+    padding: 18px 20px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #6B5300;
+    margin-bottom: 18px;
+  }
+  .warn-box ol {
+    margin: 10px 0 6px;
+    padding-left: 20px;
+  }
+  .warn-box li { margin-bottom: 6px; }
+
   /* ── Footer ─────────────────────────────────────────────── */
   footer {
     background: var(--navy);
@@ -253,6 +269,18 @@
           <p>Próximamente.</p>
         </div>
         <a class="btn" href="#">Pronto</a>
+      </div>
+
+      <div class="warn-box">
+        <strong>⚠️ Windows puede mostrar una advertencia al instalar.</strong>
+        Como la app es nueva y no tiene un certificado de firma de código pagado,
+        Windows (SmartScreen o "Control de aplicaciones inteligentes") puede
+        avisar que no reconoce al desarrollador. Para instalar de todas formas:
+        <ol>
+          <li>Si sale "Windows protegió su PC" → clic en <em>Más información</em> → <em>Ejecutar de todas formas</em>.</li>
+          <li>Si sale "Control de aplicaciones inteligentes bloqueó..." → clic derecho en el instalador → <em>Propiedades</em> → marca <em>Desbloquear</em> al final → Aplicar. Si sigue bloqueado, busca "Control de aplicaciones inteligentes" en Ajustes de Windows y desactívalo temporalmente.</li>
+        </ol>
+        En Android, habilita "Instalar apps desconocidas" para el navegador/gestor de archivos que uses para abrir el .apk.
       </div>
 
       <p class="note">
