@@ -26,6 +26,7 @@ class PermissionGateScreen extends ConsumerStatefulWidget {
 class _PermissionGateScreenState extends ConsumerState<PermissionGateScreen>
     with WidgetsBindingObserver {
   bool _notifGranted = false;
+  bool _notifPermanentlyDenied = false;
   bool _exactAlarmGranted = false;
   bool _isChecking = true;
 
@@ -52,8 +53,11 @@ class _PermissionGateScreenState extends ConsumerState<PermissionGateScreen>
     setState(() => _isChecking = true);
     bool notif = true;
     bool alarm = true;
+    bool notifPermanentlyDenied = false;
     try {
-      notif = await Permission.notification.isGranted;
+      final notifStatus = await Permission.notification.status;
+      notif = notifStatus.isGranted || notifStatus.isLimited;
+      notifPermanentlyDenied = notifStatus.isPermanentlyDenied;
       if (Platform.isAndroid) {
         alarm = await Permission.scheduleExactAlarm.isGranted;
       }
@@ -62,6 +66,7 @@ class _PermissionGateScreenState extends ConsumerState<PermissionGateScreen>
     if (!mounted) return;
     setState(() {
       _notifGranted = notif;
+      _notifPermanentlyDenied = notifPermanentlyDenied;
       _exactAlarmGranted = alarm;
       _isChecking = false;
     });
@@ -83,8 +88,18 @@ class _PermissionGateScreenState extends ConsumerState<PermissionGateScreen>
   Future<void> _requestNotif() async {
     final status = await Permission.notification.request();
     final granted = status.isGranted || status.isLimited;
-    setState(() => _notifGranted = granted);
-    if (granted && _exactAlarmGranted) _proceed();
+    setState(() {
+      _notifGranted = granted;
+      _notifPermanentlyDenied = status.isPermanentlyDenied;
+    });
+    if (granted && _exactAlarmGranted) {
+      _proceed();
+    } else if (status.isPermanentlyDenied) {
+      // El usuario ya lo rechazó antes: Android deja de mostrar el
+      // diálogo del sistema y hay que ir a Ajustes para activarlo.
+      await openAppSettings();
+      // _checkAll() se llama automáticamente en didChangeAppLifecycleState.resumed
+    }
   }
 
   Future<void> _requestExactAlarm() async {
@@ -161,6 +176,8 @@ class _PermissionGateScreenState extends ConsumerState<PermissionGateScreen>
                       'Recibe alertas cuando una tarea vence hoy o es urgente.',
                   granted: _notifGranted,
                   onGrant: _isChecking ? null : _requestNotif,
+                  grantLabel:
+                      _notifPermanentlyDenied ? 'Ir a Ajustes' : 'Activar',
                 ),
 
                 // ── Tarjeta: Alarmas exactas (Android) ───────────
