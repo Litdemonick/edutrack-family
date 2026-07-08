@@ -208,6 +208,18 @@ export default {
     } catch (e) {
       if (e instanceof AuthError) return errorJson(e.message, e.status);
       console.error(e);
+      // Cuota de Firestore agotada (plan gratis Spark) — antes se
+      // reenviaba el JSON crudo del error ("Firestore GET ...: 429
+      // {...}") tal cual al cliente, que lo mostraba sin traducir.
+      // Con esto cualquier pantalla que muestre este mensaje
+      // (SnackBar, EmptyState, etc.) ya sale en español y explicando
+      // qué pasa, sin importar cuál endpoint lo haya disparado.
+      if (/RESOURCE_EXHAUSTED|Quota exceeded|"code":\s*429/i.test(e.message || '')) {
+        return errorJson(
+          'Se alcanzó el límite de uso gratis por hoy. Espera un rato y vuelve a intentar (se libera solo).',
+          429,
+        );
+      }
       return errorJson(e.message || 'Error interno', 500);
     }
   },

@@ -121,13 +121,17 @@ class AdminDashboard extends ConsumerWidget {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Text(
-                        user?.displayName ?? 'Admin',
-                        style: const TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 19,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                      Flexible(
+                        child: Text(
+                          user?.displayName ?? 'Admin',
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 19,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),

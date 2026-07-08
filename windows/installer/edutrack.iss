@@ -3,7 +3,7 @@
 ; Requiere haber corrido antes: flutter build windows --release
 
 #define MyAppName "EduTrack Family"
-#define MyAppVersion "2.0.0"
+#define MyAppVersion "2.0.1"
 #define MyAppPublisher "EduTrack"
 #define MyAppExeName "edutrack.exe"
 #define MyReleaseDir "..\..\build\windows\x64\runner\Release"
