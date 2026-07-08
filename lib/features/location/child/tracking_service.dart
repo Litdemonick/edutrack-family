@@ -7,6 +7,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 
 import 'package:edutrack_family/core/database/database_helper.dart';
+import 'package:edutrack_family/core/services/device_id_service.dart';
 import 'package:edutrack_family/core/services/push_queue_service.dart';
 import 'package:edutrack_family/features/location/data/location_models.dart';
 import 'package:edutrack_family/features/location/data/location_repository.dart';
@@ -137,6 +138,7 @@ class TrackingService {
 
 class _TrackingTaskHandler extends TaskHandler {
   String? _studentId;
+  String? _deviceId;
   LocationPoint? _lastWritten;
   final Map<String, bool> _insideZone = {};
   List<SafeZone> _zones = const [];
@@ -157,7 +159,18 @@ class _TrackingTaskHandler extends TaskHandler {
     }
     _studentId =
         await FlutterForegroundTask.getData<String>(key: 'tracking_student_id');
-    AppLog.d('[Tracking] Servicio iniciado para $_studentId');
+    _deviceId = await DeviceIdService.instance.installId();
+
+    // Si otro dispositivo con la misma cuenta ya reportó zonas antes,
+    // partir de ese estado en vez de "todo afuera" — evita que este
+    // celular vuelva a mandar "entró/salió" de zonas donde el
+    // estudiante ya estaba según el otro dispositivo.
+    final sid = _studentId;
+    if (sid != null) {
+      final saved = await LocationRepository.instance.getZoneState(sid);
+      _insideZone.addAll(saved);
+    }
+    AppLog.d('[Tracking] Servicio iniciado para $_studentId ($_deviceId)');
   }
 
   @override
@@ -179,6 +192,7 @@ class _TrackingTaskHandler extends TaskHandler {
         accuracy: pos.accuracy,
         speed: pos.speed,
         ts: DateTime.now(),
+        deviceId: _deviceId,
       );
 
       // Cadencia adaptativa: escribir si se movió o pasó mucho tiempo
@@ -210,12 +224,19 @@ class _TrackingTaskHandler extends TaskHandler {
   // ── Geocercas (evaluación local con histéresis) ─────────────
 
   Future<void> _evaluateZones(String sid, LocationPoint point) async {
-    // Refrescar zonas cada 10 min
+    // Refrescar zonas cada 10 min — y junto con ellas, el estado de
+    // entrada/salida que haya quedado guardado en Firestore (por si
+    // OTRO dispositivo con la misma cuenta detectó un cambio de zona
+    // mientras tanto). Sin esto, dos celulares divergen para siempre
+    // tras el primer refresh y pueden mandar avisos contradictorios.
     if (DateTime.now().difference(_zonesLoadedAt) > _zoneRefresh) {
       _zones = await LocationRepository.instance.getZones(sid);
+      final saved = await LocationRepository.instance.getZoneState(sid);
+      _insideZone.addAll(saved);
       _zonesLoadedAt = DateTime.now();
     }
 
+    var stateChanged = false;
     for (final zone in _zones) {
       final dist = LocationRepository.distanceMeters(
           zone.lat, zone.lng, point.lat, point.lng);
@@ -227,6 +248,7 @@ class _TrackingTaskHandler extends TaskHandler {
 
       if (isInside != wasInside) {
         _insideZone[zone.id] = isInside;
+        stateChanged = true;
         final type = isInside ? 'enter' : 'exit';
         try {
           await LocationRepository.instance.writeZoneEvent(
@@ -255,6 +277,14 @@ class _TrackingTaskHandler extends TaskHandler {
         }
       } else {
         _insideZone[zone.id] = isInside;
+      }
+    }
+
+    if (stateChanged) {
+      try {
+        await LocationRepository.instance.setZoneState(sid, _insideZone);
+      } catch (e) {
+        AppLog.d('[Tracking] zoneState offline: $e');
       }
     }
   }

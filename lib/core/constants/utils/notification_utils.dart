@@ -9,6 +9,7 @@ import 'package:timezone/timezone.dart' as tz;
 import '../app_strings.dart';
 import 'date_utils.dart';
 import '../../data/local/models/notification_model.dart';
+import '../../data/local/models/event_model.dart' show EventType;
 
 // ═══════════════════════════════════════════════════════════════
 // NOTIFICATION UTILS — EduTrack Family
@@ -87,6 +88,11 @@ class NotificationUtils {
 
   /// Base de IDs para alertas urgentes de admin (taskId hash + 3000)
   static const int _idBaseAdmin = 3000;
+
+  /// Base de IDs para la cascada "por vencer" de eventos (ver
+  /// scheduleEventDueSoon) — rango propio para no chocar con
+  /// _eventReminderId (4000) ni con _deterministicId (5000-5899).
+  static const int _idBaseEventDue = 6000;
 
   // ─────────────────────────────────────────────────────────────
   // PROGRAMAR NOTIFICACIÓN DE VENCIMIENTO DE TAREA
@@ -351,6 +357,85 @@ class NotificationUtils {
   /// Cancela el recordatorio de un evento
   static Future<void> cancelEventReminder(String eventId) async {
     await cancelById(_eventReminderId(eventId));
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // CASCADA "POR VENCER" DE EVENTOS
+  // Igual de espíritu que scheduleTaskNotifications (varias alertas
+  // según cuán cerca está la fecha, mismo sonido/vibración que las
+  // tareas por vencer), pero SOLO esto — a diferencia de las tareas,
+  // un evento no tiene "no completado" ni alerta de admin, esos
+  // conceptos no existen para un evento del calendario. Corre
+  // independiente de scheduleEventReminder (el aviso de "empieza en
+  // N minutos" de eventos con hora) — no lo reemplaza.
+  // ─────────────────────────────────────────────────────────────
+
+  /// Días antes de la fecha del evento en que avisar, según su tipo.
+  static List<int> _eventDaysBefore(EventType type) {
+    switch (type) {
+      case EventType.exam:
+        return const [3, 1, 0];
+      case EventType.meeting:
+      case EventType.special:
+        return const [1, 0];
+      case EventType.holiday:
+      case EventType.other:
+        return const [1];
+    }
+  }
+
+  /// Programa la cascada "por vencer" de un evento. Llamar al crear o
+  /// editar un evento, sin importar si es de todo el día — la mayoría
+  /// de eventos escolares lo son y antes no recibían NINGÚN
+  /// recordatorio anticipado por esa razón.
+  static Future<void> scheduleEventDueSoon({
+    required String eventId,
+    required String eventTitle,
+    required DateTime eventDate,
+    required EventType type,
+  }) async {
+    await cancelEventDueSoon(eventId);
+
+    final sound = await _soundEnabled();
+    final vibration = await _vibrationEnabled();
+    final vibNormal = await _vibrationNormalFromPrefs();
+    final daysBefore = _eventDaysBefore(type);
+
+    for (var i = 0; i < daysBefore.length; i++) {
+      final notifDate =
+          EduDateUtils.notificationDateFor(eventDate, daysBefore: daysBefore[i]);
+      if (notifDate == null) continue;
+
+      final daysLeft = EduDateUtils.daysUntil(eventDate);
+      final isUrgent = daysLeft <= 0;
+
+      await _scheduleNotification(
+        id: _eventDueNotifId(eventId, i),
+        title: isUrgent ? '📅 ¡Es hoy!' : '📅 Evento próximo',
+        body: isUrgent
+            ? '"$eventTitle" es hoy.'
+            : '"$eventTitle" es en $daysLeft día${daysLeft == 1 ? '' : 's'}.',
+        scheduledDate: notifDate,
+        channelId: channelEventId,
+        channelName: channelEventName,
+        channelDesc: channelEventDesc,
+        importance: Importance.max,
+        priority: Priority.max,
+        playSound: sound,
+        enableVibration: vibration,
+        vibrationPattern: isUrgent ? _vibrationUrgent : vibNormal,
+        payload: 'event:$eventId',
+        fullScreenIntent: isUrgent,
+      );
+    }
+  }
+
+  /// Cancela la cascada "por vencer" de un evento.
+  static Future<void> cancelEventDueSoon(String eventId) async {
+    for (var i = 0; i < 3; i++) {
+      await app.flutterLocalNotificationsPlugin
+          .cancel(id: _eventDueNotifId(eventId, i));
+    }
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -842,6 +927,12 @@ class NotificationUtils {
   /// Genera un ID de recordatorio de evento.
   static int _eventReminderId(String eventId) {
     return 4000 + (eventId.hashCode.abs() % 800);
+  }
+
+  /// Genera un ID de notificación para la cascada "por vencer" de un
+  /// evento y un índice (igual patrón que _taskNotifId).
+  static int _eventDueNotifId(String eventId, int index) {
+    return _idBaseEventDue + (eventId.hashCode.abs() % 800) + index;
   }
 
   /// Genera un ID de recordatorio para una tarea.

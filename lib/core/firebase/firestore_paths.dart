@@ -45,6 +45,14 @@ class FirestorePaths {
       'students/$studentId/locations/current';
   static String locationHistory(String studentId) =>
       'students/$studentId/locations/history/points';
+  static String locationConsent(String studentId) =>
+      'students/$studentId/locations/consent';
+  // Última entrada/salida de zona conocida por estudiante (no por
+  // dispositivo) — permite que un segundo celular con la misma
+  // cuenta arranque sabiendo en qué zonas ya estaba, en vez de
+  // duplicar el aviso de "entró/salió" que el otro celular ya mandó.
+  static String locationZoneState(String studentId) =>
+      'students/$studentId/locations/zoneState';
 
   static String zones(String studentId) => 'students/$studentId/zones';
   static String zone(String studentId, String zoneId) =>

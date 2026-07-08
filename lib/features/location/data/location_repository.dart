@@ -59,6 +59,27 @@ class LocationRepository {
     await batch.commit();
   }
 
+  /// Última entrada/salida de zona conocida (compartida entre todos
+  /// los dispositivos del estudiante, ver comentario en
+  /// FirestorePaths.locationZoneState). Igual que `locations/current`,
+  /// cae bajo la regla `locations/{document=**}` — el hijo ya puede
+  /// leerla y escribirla, no hace falta tocar firestore.rules.
+  Future<Map<String, bool>> getZoneState(String studentId) async {
+    try {
+      final data =
+          await _gateway.getRawDoc(FirestorePaths.locationZoneState(studentId));
+      if (data == null) return const {};
+      return data.map((k, v) => MapEntry(k, v == true));
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  Future<void> setZoneState(String studentId, Map<String, bool> state) async {
+    await _gateway.setRawDoc(
+        FirestorePaths.locationZoneState(studentId), state);
+  }
+
   Future<void> writeZoneEvent({
     required String studentId,
     required String zoneId,
@@ -199,7 +220,7 @@ class LocationRepository {
   /// del hijo (Android) en la práctica, pero pasar por el gateway
   /// no cuesta nada y evita un caso especial más.
   Future<void> setDeviceConfirmed(String studentId, bool confirmed) async {
-    await _gateway.setRawDoc('${FirestorePaths.student(studentId)}/locations/consent', {
+    await _gateway.setRawDoc(FirestorePaths.locationConsent(studentId), {
       'deviceConfirmed': confirmed,
       if (confirmed) 'consentedAt': DateTime.now().toIso8601String(),
     });
@@ -213,7 +234,7 @@ class LocationRepository {
   /// verde igual, sin ninguna pista de que en realidad estaba
   /// bloqueado esperando un permiso.
   Future<void> setPermissionError(String studentId, String? error) async {
-    await _gateway.setRawDoc('${FirestorePaths.student(studentId)}/locations/consent', {
+    await _gateway.setRawDoc(FirestorePaths.locationConsent(studentId), {
       'permissionError': error,
     });
   }
@@ -268,7 +289,7 @@ class LocationRepository {
           emit();
         }));
         subs.add(_db
-            .doc('${FirestorePaths.student(studentId)}/locations/consent')
+            .doc(FirestorePaths.locationConsent(studentId))
             .snapshots()
             .listen((snap) {
           lastConfirmed = (snap.data()?['deviceConfirmed'] ?? false) as bool;
@@ -290,7 +311,7 @@ class LocationRepository {
     final studentData = await _gateway.getRawDoc(FirestorePaths.student(studentId));
     final sharing = (studentData?['locationSharing'] as Map<String, dynamic>?) ?? const {};
     final consentData =
-        await _gateway.getRawDoc('${FirestorePaths.student(studentId)}/locations/consent');
+        await _gateway.getRawDoc(FirestorePaths.locationConsent(studentId));
     return (
       enabledByParent: (sharing['enabledByParent'] ?? false) as bool,
       deviceConfirmed: (consentData?['deviceConfirmed'] ?? false) as bool,
@@ -301,7 +322,7 @@ class LocationRepository {
   Future<bool> isDeviceConfirmed(String studentId) async {
     try {
       final data =
-          await _gateway.getRawDoc('${FirestorePaths.student(studentId)}/locations/consent');
+          await _gateway.getRawDoc(FirestorePaths.locationConsent(studentId));
       return (data?['deviceConfirmed'] ?? false) as bool;
     } catch (_) {
       return false;

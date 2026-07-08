@@ -237,7 +237,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               _SettingsTile(
                 icon: Icons.school_rounded,
                 title: 'Almacenamiento',
-                subtitle: 'Fotos y datos guardados en el dispositivo',
+                subtitle: 'Fotos y datos se sincronizan en la nube',
                 isDark: isDark,
                 onTap: null,
               ),

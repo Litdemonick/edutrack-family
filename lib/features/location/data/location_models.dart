@@ -12,6 +12,12 @@ class LocationPoint extends Equatable {
   final double? speed;
   final int? battery;
   final DateTime ts;
+  // Instalación que reportó este punto (ver DeviceIdService) — solo
+  // informativo (p.ej. para saber si dos celulares con la misma
+  // cuenta de estudiante están escribiendo posiciones distintas); no
+  // se usa para decidir cuál escritura "gana", esa sigue siendo la
+  // más reciente por diseño.
+  final String? deviceId;
 
   const LocationPoint({
     required this.lat,
@@ -20,6 +26,7 @@ class LocationPoint extends Equatable {
     this.speed,
     this.battery,
     required this.ts,
+    this.deviceId,
   });
 
   bool get isStale => DateTime.now().difference(ts).inMinutes > 10;
@@ -31,6 +38,7 @@ class LocationPoint extends Equatable {
         'speed': speed,
         'battery': battery,
         'ts': ts.toIso8601String(),
+        'deviceId': deviceId,
         if (expireAt != null) 'expireAt': expireAt,
       };
 
@@ -42,6 +50,7 @@ class LocationPoint extends Equatable {
       speed: (data['speed'] as num?)?.toDouble(),
       battery: data['battery'] as int?,
       ts: DateTime.tryParse((data['ts'] ?? '') as String) ?? DateTime.now(),
+      deviceId: data['deviceId'] as String?,
     );
   }
 

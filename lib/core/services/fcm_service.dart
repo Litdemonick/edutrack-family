@@ -3,11 +3,10 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
 
 import '../firebase/firestore_paths.dart';
 import 'api_client.dart';
+import 'device_id_service.dart';
 import '../utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
@@ -23,8 +22,6 @@ class FcmService {
   FcmService._();
   static final FcmService instance = FcmService._();
 
-  static const _kInstallId = 'fcm_install_id';
-
   StreamSubscription<String>? _tokenSub;
   String? _registeredUid;
 
@@ -34,15 +31,7 @@ class FcmService {
           defaultTargetPlatform == TargetPlatform.iOS);
 
   /// Id estable de esta instalación (persiste en prefs).
-  Future<String> _installId() async {
-    final prefs = await SharedPreferences.getInstance();
-    var id = prefs.getString(_kInstallId);
-    if (id == null) {
-      id = const Uuid().v4();
-      await prefs.setString(_kInstallId, id);
-    }
-    return id;
-  }
+  Future<String> _installId() => DeviceIdService.instance.installId();
 
   /// Llamar al iniciar sesión: pide permiso, registra token y
   /// escucha rotaciones de token.

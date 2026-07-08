@@ -173,7 +173,16 @@ class EventNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
       eventId: event.id,
     );
 
-    // Programar recordatorio si el evento tiene hora
+    // Cascada "por vencer" (días antes, según tipo) — sin importar
+    // si el evento es de todo el día.
+    await NotificationUtils.scheduleEventDueSoon(
+      eventId: event.id,
+      eventTitle: event.title,
+      eventDate: event.date,
+      type: event.type,
+    );
+
+    // Recordatorio de "empieza en N minutos", solo si el evento tiene hora
     if (!isAllDay && reminderMinutesBefore > 0) {
       await NotificationUtils.scheduleEventReminder(
         eventId: event.id,
@@ -217,7 +226,14 @@ class EventNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
       eventId: updated.id,
     );
 
-    // Reprogramar recordatorio
+    // Reprogramar cascada "por vencer" + recordatorio de hora
+    await NotificationUtils.scheduleEventDueSoon(
+      eventId: updated.id,
+      eventTitle: updated.title,
+      eventDate: updated.date,
+      type: updated.type,
+    );
+
     await NotificationUtils.cancelEventReminder(updated.id);
     if (!updated.isAllDay && updated.reminderMinutesBefore > 0) {
       await NotificationUtils.scheduleEventReminder(
@@ -241,7 +257,8 @@ class EventNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
     }
     await _repo.deleteEvent(eventId);
 
-    // Cancelar recordatorio programado
+    // Cancelar recordatorios programados
+    await NotificationUtils.cancelEventDueSoon(eventId);
     await NotificationUtils.cancelEventReminder(eventId);
 
     if (toDelete != null) {

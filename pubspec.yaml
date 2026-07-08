@@ -2,7 +2,7 @@ name: edutrack_family
 description: "EduTrack Family - Plataforma de gestión de tareas escolares para padres, tutores y profesores."
 publish_to: 'none'
 
-version: 2.0.1+4
+version: 2.0.2+5
 
 environment:
   sdk: ^3.7.0
