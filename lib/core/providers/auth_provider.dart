@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:edutrack_family/core/data/local/models/app_user_model.dart';
 import 'package:edutrack_family/core/database/database_helper.dart';
+import 'package:edutrack_family/core/utils/app_log.dart';
 import 'package:edutrack_family/core/services/fcm_service.dart';
 import 'package:edutrack_family/features/auth/data/auth_gateway.dart';
 import 'package:edutrack_family/features/auth/data/firebase_auth_repository.dart';
@@ -59,13 +60,36 @@ class AuthNotifier extends StateNotifier<SessionUser?> {
     // de código del niño: no son sesión de app.
     if (user.isAnonymous) return;
 
-    final profile = await _repo.loadProfile(user);
+    SessionUser? profile;
+    try {
+      profile = await _repo.loadProfile(user);
+    } catch (e) {
+      // Reintento único tras un respiro corto — la mayoría de errores
+      // acá son blips transitorios (sin señal todavía, cuota
+      // momentánea de Firestore) que se resuelven solos un instante
+      // después, sin necesidad de tocar el estado de sesión.
+      AppLog.d('[Auth] loadProfile falló, reintentando en 1.5s: $e');
+      await Future.delayed(const Duration(milliseconds: 1500));
+      try {
+        profile = await _repo.loadProfile(user);
+      } catch (e2) {
+        // Error de red/servidor (ej. cuota momentánea de Firestore, sin
+        // señal todavía) — NUNCA se interpreta como "sin perfil, hay
+        // que completar el registro" (bug real encontrado en vivo: un
+        // 429 de Firestore mandaba a un usuario YA registrado de vuelta
+        // a la pantalla de elegir rol). Se deja el estado tal cual
+        // estaba y simplemente no se resuelve nada en este intento.
+        AppLog.d('[Auth] loadProfile falló de nuevo, se mantiene el estado actual: $e2');
+        _hasResolvedOnce = true;
+        return;
+      }
+    }
     if (profile == null) {
-      // Si ya había una sesión válida, no la borres por un error de
-      // red transitorio al recargar el perfil (p. ej. al reabrir la
-      // app en el celular sin señal todavía por un instante) — eso
-      // confundía "sin conexión ahora mismo" con "sin perfil, hay que
-      // completar el registro", cerrando la sesión sin motivo real.
+      // A diferencia del catch de arriba, acá loadProfile() sí
+      // respondió con éxito y dijo "no tiene perfil" — solo entra en
+      // este branch en un arranque limpio real. Si ya había una
+      // sesión válida en memoria, tampoco la borres (mismo espíritu
+      // defensivo, por si acaso).
       if (state != null) {
         _hasResolvedOnce = true;
         return;

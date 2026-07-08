@@ -11,6 +11,7 @@ import 'package:edutrack_family/core/features/profile/profile_crop_screen.dart';
 import 'package:edutrack_family/core/firebase/firestore_paths.dart';
 import 'package:edutrack_family/core/firebase/firestore_service.dart';
 import 'package:edutrack_family/core/services/evidence_image_service.dart';
+import 'package:edutrack_family/core/utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // PROFILE PHOTO PROVIDER — EduTrack Family
@@ -58,14 +59,14 @@ class ProfilePhotoNotifier extends StateNotifier<String?> {
         .listen(
           _onRemoteDocChanged,
           onError: (e) =>
-              debugPrint('[ProfilePhoto] Error escuchando users/$_userId: $e'),
+              AppLog.d('[ProfilePhoto] Error escuchando users/$_userId: $e'),
         );
     _studentDocSub = FirestoreService.instance
         .watchRawDoc(FirestorePaths.student(_userId))
         .listen(
           _onRemoteDocChanged,
           onError: (e) =>
-              debugPrint('[ProfilePhoto] Error escuchando students/$_userId: $e'),
+              AppLog.d('[ProfilePhoto] Error escuchando students/$_userId: $e'),
         );
   }
 
@@ -90,7 +91,7 @@ class ProfilePhotoNotifier extends StateNotifier<String?> {
       await prefs.setString(_pathKey, destPath);
       await prefs.setString(_updatedAtKey, remoteUpdatedAt);
     } catch (e) {
-      debugPrint('[ProfilePhoto] Error aplicando foto remota: $e');
+      AppLog.d('[ProfilePhoto] Error aplicando foto remota: $e');
     }
   }
 
@@ -173,7 +174,7 @@ class ProfilePhotoNotifier extends StateNotifier<String?> {
         );
       }
     } catch (e) {
-      debugPrint('[ProfilePhoto] Error picking/cropping image: $e');
+      AppLog.d('[ProfilePhoto] Error picking/cropping image: $e');
     }
   }
 

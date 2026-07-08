@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter/foundation.dart';
+import 'package:edutrack_family/core/utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // CONNECTIVITY SERVICE — EduTrack Family
@@ -30,7 +30,7 @@ class ConnectivityService {
       if (online != _isOnline) {
         _isOnline = online;
         _controller.add(online);
-        debugPrint('[Connectivity] ${online ? "Online ✓" : "Offline ✗"}');
+        AppLog.d('[Connectivity] ${online ? "Online ✓" : "Offline ✗"}');
       }
     });
   }

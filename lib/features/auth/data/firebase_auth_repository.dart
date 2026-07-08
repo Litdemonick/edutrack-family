@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import 'package:edutrack_family/core/data/local/models/app_user_model.dart';
@@ -9,6 +8,7 @@ import 'package:edutrack_family/core/firebase/platform/firebase_backend.dart';
 import 'package:edutrack_family/core/firebase/rest/desktop_auth_session.dart';
 import 'package:edutrack_family/core/services/api_client.dart';
 import 'package:edutrack_family/features/auth/data/auth_gateway.dart';
+import 'package:edutrack_family/core/utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // FIREBASE AUTH REPOSITORY — EduTrack Family 2.0
@@ -91,7 +91,7 @@ class FirebaseAuthRepository implements AuthGateway {
     } on FirebaseAuthException catch (e) {
       return AuthResult.fail(mapAuthError(e.code));
     } catch (e) {
-      debugPrint('[Auth] registerAdult: $e');
+      AppLog.d('[Auth] registerAdult: $e');
       return const AuthResult.fail('No se pudo crear la cuenta. Intenta de nuevo.');
     }
   }
@@ -121,7 +121,7 @@ class FirebaseAuthRepository implements AuthGateway {
       await ApiClient.instance.call('/register-role', {'role': role.name});
       await user.getIdToken(true); // refrescar para que el claim aplique ya
     } catch (e) {
-      debugPrint('[Auth] registerRole no disponible (se reintenta luego): $e');
+      AppLog.d('[Auth] registerRole no disponible (se reintenta luego): $e');
     }
   }
 
@@ -145,7 +145,7 @@ class FirebaseAuthRepository implements AuthGateway {
     } on ApiException catch (e) {
       return AuthResult.fail(e.message);
     } catch (e) {
-      debugPrint('[Auth] completeProfile: $e');
+      AppLog.d('[Auth] completeProfile: $e');
       return const AuthResult.fail('No se pudo completar el perfil.');
     }
   }
@@ -180,7 +180,7 @@ class FirebaseAuthRepository implements AuthGateway {
       if (e.code == GoogleSignInExceptionCode.canceled) {
         return const AuthResult.fail('Inicio con Google cancelado.');
       }
-      debugPrint('[Auth] Google: $e');
+      AppLog.d('[Auth] Google: $e');
       return const AuthResult.fail('No se pudo iniciar con Google.');
     } on FirebaseAuthException catch (e) {
       return AuthResult.fail(mapAuthError(e.code));
@@ -326,58 +326,62 @@ class FirebaseAuthRepository implements AuthGateway {
   // PERFIL
   // ─────────────────────────────────────────────────────────────
 
+  // No hay try/catch envolvente a propósito: si algo de red falla acá
+  // (getIdTokenResult, el get() de Firestore), esta función DEBE
+  // lanzar en vez de devolver null — null significa específicamente
+  // "no tiene perfil, hay que completar el registro", y el llamador
+  // (auth_provider._onUserChanged) lo usa para decidir si manda a la
+  // pantalla de onboarding. Si un error transitorio se tragara como
+  // null, un usuario YA registrado terminaría viendo "elige tu rol"
+  // de nuevo solo porque la lectura falló un instante.
   @override
   Future<SessionUser?> loadProfile(AuthUser authUser) async {
     // AuthUser es un snapshot neutral; para leer el custom claim
     // necesitamos el User vivo de firebase_auth (getIdTokenResult).
     final user = _auth.currentUser;
     if (user == null || user.uid != authUser.uid) return null;
-    try {
-      final token = await user.getIdTokenResult();
-      final roleName = token.claims?['role'] as String?;
 
-      // Un estudiante (uid == studentId) no tiene doc en users/{uid}
-      // — su nombre (el que le puso el padre/tutor) vive en
-      // students/{uid}. Sin este caso especial, displayName quedaba
-      // vacío ("Hola, ") porque el custom token tampoco trae nombre.
-      if (roleName == 'student') {
-        final studentDoc = await _db.doc(FirestorePaths.student(user.uid)).get();
-        final studentData = studentDoc.data();
-        return SessionUser(
-          uid: user.uid,
-          role: UserRole.student,
-          displayName: studentData?['name'] as String? ?? '',
-          photoUrl: user.photoURL,
-        );
-      }
+    final token = await user.getIdTokenResult();
+    final roleName = token.claims?['role'] as String?;
 
-      final doc = await _db.doc(FirestorePaths.user(user.uid)).get();
-      final data = doc.data();
-
-      if (roleName == null && data == null) return null; // perfil incompleto
-
-      final base = data != null
-          ? SessionUser.fromFirestore(data, user.uid)
-          : SessionUser(
-              uid: user.uid,
-              role: UserRoleExt.fromName(roleName),
-              displayName: user.displayName ?? '',
-            );
-
-      return base.copyWith(
-        role: roleName != null ? UserRoleExt.fromName(roleName) : base.role,
-        displayName: base.displayName.isNotEmpty
-            ? base.displayName
-            : (user.displayName ?? ''),
-        email: user.email ?? base.email,
-        emailVerified: user.emailVerified,
-        photoUrl: user.photoURL ?? base.photoUrl,
-        providers: user.providerData.map((p) => p.providerId).toList(),
+    // Un estudiante (uid == studentId) no tiene doc en users/{uid}
+    // — su nombre (el que le puso el padre/tutor) vive en
+    // students/{uid}. Sin este caso especial, displayName quedaba
+    // vacío ("Hola, ") porque el custom token tampoco trae nombre.
+    if (roleName == 'student') {
+      final studentDoc = await _db.doc(FirestorePaths.student(user.uid)).get();
+      final studentData = studentDoc.data();
+      return SessionUser(
+        uid: user.uid,
+        role: UserRole.student,
+        displayName: studentData?['name'] as String? ?? '',
+        photoUrl: user.photoURL,
       );
-    } catch (e) {
-      debugPrint('[Auth] loadProfile: $e');
-      return null;
     }
+
+    final doc = await _db.doc(FirestorePaths.user(user.uid)).get();
+    final data = doc.data();
+
+    if (roleName == null && data == null) return null; // perfil incompleto (de verdad, no error)
+
+    final base = data != null
+        ? SessionUser.fromFirestore(data, user.uid)
+        : SessionUser(
+            uid: user.uid,
+            role: UserRoleExt.fromName(roleName),
+            displayName: user.displayName ?? '',
+          );
+
+    return base.copyWith(
+      role: roleName != null ? UserRoleExt.fromName(roleName) : base.role,
+      displayName: base.displayName.isNotEmpty
+          ? base.displayName
+          : (user.displayName ?? ''),
+      email: user.email ?? base.email,
+      emailVerified: user.emailVerified,
+      photoUrl: user.photoURL ?? base.photoUrl,
+      providers: user.providerData.map((p) => p.providerId).toList(),
+    );
   }
 
   // ─────────────────────────────────────────────────────────────

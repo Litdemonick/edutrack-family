@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../firebase/firestore_paths.dart';
 import 'api_client.dart';
+import '../utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // FCM SERVICE — EduTrack Family 2.0
@@ -62,9 +63,9 @@ class FcmService {
         if (currentUid != null) _saveToken(currentUid, newToken);
       });
 
-      debugPrint('[FCM] Dispositivo registrado para $uid');
+      AppLog.d('[FCM] Dispositivo registrado para $uid');
     } catch (e) {
-      debugPrint('[FCM] registerDevice: $e');
+      AppLog.d('[FCM] registerDevice: $e');
     }
   }
 
@@ -83,7 +84,7 @@ class FcmService {
         'platform': defaultTargetPlatform.name,
       });
     } catch (e) {
-      debugPrint('[FCM] register-device falló: $e');
+      AppLog.d('[FCM] register-device falló: $e');
     }
   }
 
@@ -101,9 +102,9 @@ class FcmService {
           .doc(FirestorePaths.userDevice(uid, installId))
           .delete();
       await FirebaseMessaging.instance.deleteToken();
-      debugPrint('[FCM] Dispositivo des-registrado');
+      AppLog.d('[FCM] Dispositivo des-registrado');
     } catch (e) {
-      debugPrint('[FCM] unregisterDevice: $e');
+      AppLog.d('[FCM] unregisterDevice: $e');
     }
   }
 

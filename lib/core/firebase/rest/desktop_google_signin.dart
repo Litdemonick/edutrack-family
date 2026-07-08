@@ -4,11 +4,11 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:edutrack_family/core/config/desktop_oauth_config.dart';
+import 'package:edutrack_family/core/utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // DESKTOP GOOGLE SIGN-IN — EduTrack Family 2.0 (Windows/Linux)
@@ -116,7 +116,7 @@ class DesktopGoogleSignIn {
       },
     );
     if (res.statusCode >= 400) {
-      debugPrint('[GoogleSignIn] Token exchange falló (${res.statusCode}): ${res.body}');
+      AppLog.d('[GoogleSignIn] Token exchange falló (${res.statusCode}): ${res.body}');
       return null;
     }
     final json = jsonDecode(res.body) as Map<String, dynamic>;

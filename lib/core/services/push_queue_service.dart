@@ -1,6 +1,5 @@
-import 'package:flutter/foundation.dart';
-
 import 'api_client.dart';
+import '../utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // PUSH QUEUE SERVICE — EduTrack Family 2.0
@@ -32,9 +31,9 @@ class PushQueueService {
         'data': data ?? const <String, String>{},
         if (channelId != null) 'channelId': channelId,
       });
-      debugPrint('[PushQueue] Push enviada a ${targetUids.length} usuario(s)');
+      AppLog.d('[PushQueue] Push enviada a ${targetUids.length} usuario(s)');
     } catch (e) {
-      debugPrint('[PushQueue] Error enviando push: $e');
+      AppLog.d('[PushQueue] Error enviando push: $e');
     }
   }
 }

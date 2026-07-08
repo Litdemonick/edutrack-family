@@ -9,6 +9,7 @@ import '../utils/platform_caps.dart';
 import 'profile_photo_remote.dart';
 import 'storage_gateway.dart';
 import 'task_image_remote.dart';
+import '../utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // EVIDENCE IMAGE SERVICE — EduTrack Family 2.0
@@ -86,10 +87,10 @@ class EvidenceImageService implements StorageGateway {
         );
         if (ok) uploaded++;
       }
-      debugPrint('[EvidenceImg] ✓ $uploaded/${localPaths.length} $kind subidas ($taskId${version != null ? ' v$version' : ''})');
+      AppLog.d('[EvidenceImg] ✓ $uploaded/${localPaths.length} $kind subidas ($taskId${version != null ? ' v$version' : ''})');
       return uploaded > 0;
     } catch (e) {
-      debugPrint('[EvidenceImg] ✗ upload $kind ($taskId): $e');
+      AppLog.d('[EvidenceImg] ✗ upload $kind ($taskId): $e');
       return false;
     }
   }
@@ -192,7 +193,7 @@ class EvidenceImageService implements StorageGateway {
       paths.sort();
       return paths;
     } catch (e) {
-      debugPrint('[EvidenceImg] ✗ download $kind ($taskId): $e');
+      AppLog.d('[EvidenceImg] ✗ download $kind ($taskId): $e');
       return const [];
     }
   }

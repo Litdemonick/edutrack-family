@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import '../utils/app_log.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -114,7 +114,7 @@ class LinkedStudentsNotifier extends StateNotifier<List<StudentProfile>> {
         SyncService.instance.setLinkedStudents(remote.map((s) => s.id).toList());
       },
       onError: (e) =>
-          debugPrint('[LinkedStudents] startWatching: cache local sin cambios ($e)'),
+          AppLog.d('[LinkedStudents] startWatching: cache local sin cambios ($e)'),
     );
   }
 
@@ -138,7 +138,7 @@ class LinkedStudentsNotifier extends StateNotifier<List<StudentProfile>> {
       await StudentRepository.instance.replaceAll(remote);
       if (!_sameStudents(state, remote)) state = remote;
     } catch (e) {
-      debugPrint('[LinkedStudents] refreshForAdult: cache local sin cambios ($e)');
+      AppLog.d('[LinkedStudents] refreshForAdult: cache local sin cambios ($e)');
     }
     SyncService.instance.setLinkedStudents(state.map((s) => s.id).toList());
   }

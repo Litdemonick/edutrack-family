@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:edutrack_family/core/utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // BIOMETRIC SERVICE — EduTrack Family 2.0
@@ -47,7 +48,7 @@ class BiometricService {
         persistAcrossBackgrounding: true,
       );
     } catch (e) {
-      debugPrint('[Biometric] error: $e');
+      AppLog.d('[Biometric] error: $e');
       return false;
     }
   }

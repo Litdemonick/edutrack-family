@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-import 'package:flutter/foundation.dart';
+import 'package:edutrack_family/core/utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // CAMERA SERVICE — EduTrack Family
@@ -31,7 +31,7 @@ class CameraService {
       if (xFile == null) return null;
       return await _saveToLocal(xFile, taskId);
     } catch (e) {
-      debugPrint('[Camera] Error tomando foto: $e');
+      AppLog.d('[Camera] Error tomando foto: $e');
       return null;
     }
   }
@@ -51,7 +51,7 @@ class CameraService {
       if (xFile == null) return null;
       return await _saveToLocal(xFile, taskId);
     } catch (e) {
-      debugPrint('[Camera] Error eligiendo foto: $e');
+      AppLog.d('[Camera] Error eligiendo foto: $e');
       return null;
     }
   }
@@ -80,7 +80,7 @@ class CameraService {
       }
       return paths;
     } catch (e) {
-      debugPrint('[Camera] Error eligiendo múltiples fotos: $e');
+      AppLog.d('[Camera] Error eligiendo múltiples fotos: $e');
       return [];
     }
   }
@@ -113,7 +113,7 @@ class CameraService {
       final file = File(path);
       if (file.existsSync()) file.deleteSync();
     } catch (e) {
-      debugPrint('[Camera] Error eliminando foto: $e');
+      AppLog.d('[Camera] Error eliminando foto: $e');
     }
   }
 

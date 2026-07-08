@@ -27,6 +27,7 @@ import 'core/providers/auth_provider.dart';
 import 'core/services/app_navigator.dart';
 import 'features/safety/seismic_alert_screen.dart';
 import 'firebase_options.dart';
+import 'core/utils/app_log.dart';
 
 // ─────────────────────────────────────────────────────────────
 // SHARED PREFERENCES PROVIDER — accesible globalmente
@@ -127,7 +128,7 @@ void notificationTapBackground(NotificationResponse notificationResponse) {
   // onDidReceiveNotificationResponse más abajo, que además cubre
   // el 99% de los toques reales porque las notificaciones locales
   // solo se muestran mientras la app ya está corriendo.
-  debugPrint(
+  AppLog.d(
     '[EduTrack] Notificación en background: ${notificationResponse.payload}',
   );
 }
@@ -201,12 +202,12 @@ Future<void> main() async {
   // ── Manejador global de errores de Flutter ─────────────────
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
-    debugPrint('[EduTrack] Error de Flutter: ${details.exception}');
+    AppLog.d('[EduTrack] Error de Flutter: ${details.exception}');
   };
 
   // ── Manejador de errores asíncronos no capturados ──────────
   PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
-    debugPrint('[EduTrack] Error no capturado: $error\n$stack');
+    AppLog.d('[EduTrack] Error no capturado: $error\n$stack');
     return true; // Marcado como manejado, la app no crashea
   };
 
@@ -300,7 +301,7 @@ Future<void> main() async {
 // ─────────────────────────────────────────────────────────────
 Future<void> _initFirebase() async {
   if (useDesktopRestBackend) {
-    debugPrint('[EduTrack] Windows/Linux: usando backend REST (sin SDK nativo) ✓');
+    AppLog.d('[EduTrack] Windows/Linux: usando backend REST (sin SDK nativo) ✓');
     return;
   }
   try {
@@ -320,9 +321,9 @@ Future<void> _initFirebase() async {
       FirebaseMessaging.onBackgroundMessage(
           _firebaseMessagingBackgroundHandler);
     }
-    debugPrint('[EduTrack] Firebase inicializado correctamente ✓');
+    AppLog.d('[EduTrack] Firebase inicializado correctamente ✓');
   } catch (e) {
-    debugPrint('[EduTrack] Firebase no disponible: $e');
+    AppLog.d('[EduTrack] Firebase no disponible: $e');
   }
 }
 
@@ -363,7 +364,7 @@ Future<void> _initNotifications() async {
     settings: initSettings,
     // Callback cuando el usuario toca una notificación con app en primer plano
     onDidReceiveNotificationResponse: (NotificationResponse response) {
-      debugPrint('[EduTrack] Notificación tocada: ${response.payload}');
+      AppLog.d('[EduTrack] Notificación tocada: ${response.payload}');
       _handleLocalNotificationTap(response.payload);
     },
     // Callback para notificaciones tocadas en background
@@ -383,6 +384,6 @@ Future<void> _initNotifications() async {
 
   await NotificationUtils.recreateChannels();
 
-  debugPrint('[EduTrack] Notificaciones locales inicializadas ✓');
+  AppLog.d('[EduTrack] Notificaciones locales inicializadas ✓');
 }
 

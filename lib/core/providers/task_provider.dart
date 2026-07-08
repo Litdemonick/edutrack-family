@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:edutrack_family/core/data/local/models/task_model.dart';
@@ -17,6 +16,7 @@ import 'package:edutrack_family/core/services/sync_service.dart';
 import 'package:edutrack_family/core/firebase/firestore_service.dart';
 import 'package:edutrack_family/core/firebase/firestore_paths.dart';
 import 'package:edutrack_family/core/utils/role_copy.dart';
+import 'package:edutrack_family/core/utils/app_log.dart';
 import '../../main.dart';
 
 // ═══════════════════════════════════════════════════════════════
@@ -77,7 +77,7 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
       if (!hasData) {
         state = AsyncValue.error(e, st);
       } else {
-        debugPrint('[TaskProvider] Error recargando tareas: $e');
+        AppLog.d('[TaskProvider] Error recargando tareas: $e');
       }
     }
   }
@@ -185,7 +185,7 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
   }) async {
     final sid = studentId ?? _scopeStudentId;
     if (sid == null) {
-      debugPrint('[TaskProvider] createTask sin estudiante activo');
+      AppLog.d('[TaskProvider] createTask sin estudiante activo');
       return;
     }
     final creator = _ref.read(authProvider);
@@ -438,7 +438,7 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
     } catch (e) {
       // Sin red o error transitorio: no bloquear al usuario por un
       // problema de conectividad, dejar pasar la acción.
-      debugPrint('[TaskProvider] isTaskStillActive no se pudo verificar: $e');
+      AppLog.d('[TaskProvider] isTaskStillActive no se pudo verificar: $e');
       return true;
     }
   }
@@ -496,7 +496,7 @@ class TaskNotifier extends StateNotifier<AsyncValue<List<TaskModel>>> {
     try {
       await loadTasks();
     } catch (e) {
-      debugPrint('[TaskProvider] Error recargando tras delete: $e');
+      AppLog.d('[TaskProvider] Error recargando tras delete: $e');
     }
   }
 

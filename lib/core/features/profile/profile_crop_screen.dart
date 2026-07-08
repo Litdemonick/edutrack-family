@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'package:edutrack_family/core/constants/app_colors.dart';
+import 'package:edutrack_family/core/utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // PROFILE CROP SCREEN — EduTrack Family
@@ -114,7 +115,7 @@ class _ProfileCropScreenState extends State<ProfileCropScreen> {
 
       if (mounted) Navigator.pop(context, destPath);
     } catch (e) {
-      debugPrint('[ProfileCrop] Error: $e');
+      AppLog.d('[ProfileCrop] Error: $e');
       if (mounted) setState(() => _saving = false);
     }
   }

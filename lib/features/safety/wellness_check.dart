@@ -17,6 +17,7 @@ import 'package:edutrack_family/core/providers/notification_provider.dart';
 import 'package:edutrack_family/core/services/push_queue_service.dart';
 import 'package:edutrack_family/core/services/ringtone_service.dart';
 import 'safety_alert_coordinator.dart';
+import 'package:edutrack_family/core/utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // CHECK-IN "¿ESTÁS BIEN?" — EduTrack Family 2.0
@@ -366,7 +367,7 @@ class _WellnessResponseScreenState
         channelId: help ? 'edutrack_safety' : null,
       );
     } catch (e) {
-      debugPrint('[WellnessResponse] notify guardians error: $e');
+      AppLog.d('[WellnessResponse] notify guardians error: $e');
     }
   }
 

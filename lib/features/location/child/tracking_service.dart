@@ -11,6 +11,7 @@ import 'package:edutrack_family/core/services/push_queue_service.dart';
 import 'package:edutrack_family/features/location/data/location_models.dart';
 import 'package:edutrack_family/features/location/data/location_repository.dart';
 import 'package:edutrack_family/firebase_options.dart';
+import 'package:edutrack_family/core/utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // TRACKING SERVICE — dispositivo del hijo (EduTrack Family 2.0)
@@ -156,7 +157,7 @@ class _TrackingTaskHandler extends TaskHandler {
     }
     _studentId =
         await FlutterForegroundTask.getData<String>(key: 'tracking_student_id');
-    debugPrint('[Tracking] Servicio iniciado para $_studentId');
+    AppLog.d('[Tracking] Servicio iniciado para $_studentId');
   }
 
   @override
@@ -202,7 +203,7 @@ class _TrackingTaskHandler extends TaskHandler {
 
       await _evaluateZones(sid, point);
     } catch (e) {
-      debugPrint('[Tracking] tick error: $e');
+      AppLog.d('[Tracking] tick error: $e');
     }
   }
 
@@ -250,7 +251,7 @@ class _TrackingTaskHandler extends TaskHandler {
             );
           }
         } catch (e) {
-          debugPrint('[Tracking] zoneEvent offline: $e');
+          AppLog.d('[Tracking] zoneEvent offline: $e');
         }
       } else {
         _insideZone[zone.id] = isInside;
@@ -289,7 +290,7 @@ class _TrackingTaskHandler extends TaskHandler {
         'ORDER BY id DESC LIMIT 200)',
       );
     } catch (e) {
-      debugPrint('[Tracking] buffer: $e');
+      AppLog.d('[Tracking] buffer: $e');
     }
   }
 
@@ -312,12 +313,12 @@ class _TrackingTaskHandler extends TaskHandler {
       }
       await db.delete(DatabaseHelper.tableLocationBuffer,
           where: 'student_id = ?', whereArgs: [sid]);
-      debugPrint('[Tracking] buffer subido (${rows.length} puntos)');
+      AppLog.d('[Tracking] buffer subido (${rows.length} puntos)');
     } catch (_) {}
   }
 
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
-    debugPrint('[Tracking] Servicio detenido');
+    AppLog.d('[Tracking] Servicio detenido');
   }
 }

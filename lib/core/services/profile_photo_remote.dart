@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:edutrack_family/core/utils/app_log.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:edutrack_family/core/config/api_config.dart';
@@ -42,13 +42,13 @@ class ProfilePhotoRemote {
         body: bytes,
       );
       if (res.statusCode >= 400) {
-        debugPrint('[ProfilePhotoRemote] ✗ upload: ${res.statusCode} ${res.body}');
+        AppLog.d('[ProfilePhotoRemote] ✗ upload: ${res.statusCode} ${res.body}');
         return null;
       }
       final decoded = jsonDecode(res.body) as Map<String, dynamic>;
       return decoded['updatedAt'] as String?;
     } catch (e) {
-      debugPrint('[ProfilePhotoRemote] ✗ upload: $e');
+      AppLog.d('[ProfilePhotoRemote] ✗ upload: $e');
       return null;
     }
   }
@@ -66,12 +66,12 @@ class ProfilePhotoRemote {
       );
       if (res.statusCode == 404) return null;
       if (res.statusCode >= 400) {
-        debugPrint('[ProfilePhotoRemote] ✗ download: ${res.statusCode} ${res.body}');
+        AppLog.d('[ProfilePhotoRemote] ✗ download: ${res.statusCode} ${res.body}');
         return null;
       }
       return res.bodyBytes;
     } catch (e) {
-      debugPrint('[ProfilePhotoRemote] ✗ download: $e');
+      AppLog.d('[ProfilePhotoRemote] ✗ download: $e');
       return null;
     }
   }

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 
 import '../data/local/models/event_model.dart';
 import '../data/local/models/schedule_block_model.dart';
@@ -11,6 +10,7 @@ import 'firestore_gateway.dart';
 import 'firestore_paths.dart';
 import 'platform/firebase_backend.dart';
 import 'rest/rest_firestore_gateway.dart';
+import '../utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // FIRESTORE SERVICE — EduTrack Family 2.0
@@ -67,7 +67,7 @@ class FirestoreService implements FirestoreGateway {
           results[doc.id] = StudentProfile.fromFirestore(doc.data(), doc.id);
         }
       } catch (e) {
-        debugPrint('[Firestore] Error listando estudiantes ($field): $e');
+        AppLog.d('[Firestore] Error listando estudiantes ($field): $e');
         hadError = true;
       }
     }
@@ -121,7 +121,7 @@ class FirestoreService implements FirestoreGateway {
             for (final d in snap.docs) d.id: StudentProfile.fromFirestore(d.data(), d.id),
           };
           emit();
-        }, onError: (e) => debugPrint('[Firestore] watchLinkedStudents parentIds: $e')));
+        }, onError: (e) => AppLog.d('[Firestore] watchLinkedStudents parentIds: $e')));
 
         subs.add(_db
             .collection(FirestorePaths.students)
@@ -132,7 +132,7 @@ class FirestoreService implements FirestoreGateway {
             for (final d in snap.docs) d.id: StudentProfile.fromFirestore(d.data(), d.id),
           };
           emit();
-        }, onError: (e) => debugPrint('[Firestore] watchLinkedStudents teacherIds: $e')));
+        }, onError: (e) => AppLog.d('[Firestore] watchLinkedStudents teacherIds: $e')));
       },
       onCancel: () async {
         for (final s in subs) {
@@ -298,7 +298,7 @@ class FirestoreService implements FirestoreGateway {
       try {
         items.add(parser(doc.data(), doc.id));
       } catch (e) {
-        debugPrint('[Firestore] Doc malformado ${doc.id}: $e');
+        AppLog.d('[Firestore] Doc malformado ${doc.id}: $e');
       }
     }
     return items;

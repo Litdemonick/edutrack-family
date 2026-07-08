@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'package:edutrack_family/core/data/local/models/app_user_model.dart';
@@ -11,6 +10,7 @@ import 'package:edutrack_family/core/firebase/rest/identity_toolkit_client.dart'
 import 'package:edutrack_family/core/firebase/rest/desktop_google_signin.dart';
 import 'package:edutrack_family/core/services/api_client.dart';
 import 'package:edutrack_family/features/auth/data/auth_gateway.dart';
+import 'package:edutrack_family/core/utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // DESKTOP AUTH SESSION — EduTrack Family 2.0 (Windows/Linux)
@@ -82,7 +82,7 @@ class DesktopAuthSession implements AuthGateway {
         isAnonymous: _providerIds.isEmpty,
       );
     } catch (e) {
-      debugPrint('[DesktopAuth] No se pudo restaurar la sesión: $e');
+      AppLog.d('[DesktopAuth] No se pudo restaurar la sesión: $e');
       await _storage.delete(key: _kRefreshToken);
     }
   }
@@ -126,7 +126,7 @@ class DesktopAuthSession implements AuthGateway {
         final session = await _itc.refresh(refreshToken);
         await _applySession(session, persistRefreshToken: true, emitUser: false);
       } catch (e) {
-        debugPrint('[DesktopAuth] Refresh falló: $e');
+        AppLog.d('[DesktopAuth] Refresh falló: $e');
         // El refresh token queda inválido cuando la contraseña se
         // cambió por el enlace del correo (Firebase revoca las
         // sesiones existentes por seguridad) — sin esto la app se
@@ -148,7 +148,7 @@ class DesktopAuthSession implements AuthGateway {
           final session = await _itc.refresh(refreshToken);
           await _applySession(session, persistRefreshToken: true, emitUser: false);
         } catch (e) {
-          debugPrint('[DesktopAuth] Refresh falló en currentIdToken: $e');
+          AppLog.d('[DesktopAuth] Refresh falló en currentIdToken: $e');
           await _forceSignOutOnInvalidToken();
           return null;
         }
@@ -195,7 +195,7 @@ class DesktopAuthSession implements AuthGateway {
     try {
       await ApiClient.instance.call('/register-role', {'role': role.name});
     } catch (e) {
-      debugPrint('[DesktopAuth] registerRole no disponible (se reintenta luego): $e');
+      AppLog.d('[DesktopAuth] registerRole no disponible (se reintenta luego): $e');
     }
   }
 
@@ -232,7 +232,7 @@ class DesktopAuthSession implements AuthGateway {
     } on IdentityToolkitException catch (e) {
       return AuthResult.fail(IdentityToolkitClient.mapError(e.code));
     } catch (e) {
-      debugPrint('[DesktopAuth] registerAdult: $e');
+      AppLog.d('[DesktopAuth] registerAdult: $e');
       return const AuthResult.fail('No se pudo crear la cuenta. Intenta de nuevo.');
     }
   }
@@ -258,7 +258,7 @@ class DesktopAuthSession implements AuthGateway {
     } on ApiException catch (e) {
       return AuthResult.fail(e.message);
     } catch (e) {
-      debugPrint('[DesktopAuth] completeProfile: $e');
+      AppLog.d('[DesktopAuth] completeProfile: $e');
       return const AuthResult.fail('No se pudo completar el perfil.');
     }
   }
@@ -292,7 +292,7 @@ class DesktopAuthSession implements AuthGateway {
     } on IdentityToolkitException catch (e) {
       return AuthResult.fail(IdentityToolkitClient.mapError(e.code));
     } catch (e) {
-      debugPrint('[DesktopAuth] Google: $e');
+      AppLog.d('[DesktopAuth] Google: $e');
       return const AuthResult.fail('No se pudo iniciar con Google.');
     }
   }
@@ -323,10 +323,10 @@ class DesktopAuthSession implements AuthGateway {
       await _applySession(session, persistRefreshToken: true);
       return const AuthResult.success();
     } on IdentityToolkitException catch (e) {
-      debugPrint('[DesktopAuth] signInWithCustomToken: ${e.code} — ${e.message}');
+      AppLog.d('[DesktopAuth] signInWithCustomToken: ${e.code} — ${e.message}');
       return AuthResult.fail(IdentityToolkitClient.mapError(e.code));
     } catch (e) {
-      debugPrint('[DesktopAuth] signInWithCustomToken: $e');
+      AppLog.d('[DesktopAuth] signInWithCustomToken: $e');
       return const AuthResult.fail('Error de conexión. Revisa tu internet.');
     }
   }
@@ -348,7 +348,7 @@ class DesktopAuthSession implements AuthGateway {
       // sin Credential Manager disponible, etc.) se veía siempre como
       // el mismo "revisa tu internet" genérico, sin forma de saber cuál
       // de las tres fue.
-      debugPrint('[DesktopAuth] signInAnonymously: $e');
+      AppLog.d('[DesktopAuth] signInAnonymously: $e');
       return const AuthResult.fail('Error de conexión. Revisa tu internet.');
     }
   }
@@ -388,7 +388,7 @@ class DesktopAuthSession implements AuthGateway {
       }
       return verified;
     } catch (e) {
-      debugPrint('[DesktopAuth] reloadAndCheckVerified falló: $e');
+      AppLog.d('[DesktopAuth] reloadAndCheckVerified falló: $e');
       return false;
     }
   }
@@ -441,77 +441,82 @@ class DesktopAuthSession implements AuthGateway {
       // inmediato). El idToken viejo seguiría "funcionando" un rato
       // más por su cuenta, pero forzar el refresh aquí detecta el
       // cambio ya, en vez de esperar a que expire solo.
-      debugPrint('[DesktopAuth] validateSession: sesión inválida ($e)');
+      AppLog.d('[DesktopAuth] validateSession: sesión inválida ($e)');
       await _forceSignOutOnInvalidToken();
     }
   }
 
+  // No hay try/catch envolvente a propósito: si getDoc() falla (red,
+  // cuota de Firestore, etc.), esta función DEBE lanzar en vez de
+  // devolver null — null aquí significa específicamente "no tiene
+  // perfil, hay que completar el registro", y el llamador
+  // (auth_provider._onUserChanged) lo usa para decidir si manda a la
+  // pantalla de onboarding. Si un error transitorio se tragara como
+  // null, un usuario YA registrado terminaría viendo "elige tu rol"
+  // de nuevo solo porque la lectura falló un instante (bug real
+  // encontrado en vivo: un 429 de cuota en Firestore mandaba a
+  // cualquiera de vuelta a completar perfil).
   @override
   Future<SessionUser?> loadProfile(AuthUser user) async {
-    try {
-      final roleName = _decodeRoleClaim(_idToken);
+    final roleName = _decodeRoleClaim(_idToken);
 
-      // Un estudiante (uid == studentId) no tiene doc en users/{uid}
-      // — su nombre (el que le puso el padre/tutor) vive en
-      // students/{uid}. Sin este caso especial, displayName quedaba
-      // vacío ("Hola, ") porque el custom token tampoco trae nombre.
-      if (roleName == 'student') {
-        final studentDoc = await _firestore.getDoc(FirestorePaths.student(user.uid));
-        final resolved = SessionUser(
-          uid: user.uid,
-          role: UserRole.student,
-          displayName: studentDoc?.data['name'] as String? ?? '',
-          photoUrl: user.photoUrl,
-        );
-        _current = user;
-        return resolved;
-      }
-
-      final doc = await _firestore.getDoc('users/${user.uid}');
-      final data = doc?.data;
-
-      if (roleName == null && data == null) return null; // perfil incompleto
-
-      // emailVerified se consulta de verdad en cada carga (no se
-      // confía en user.emailVerified, que viene de _current — recién
-      // reiniciada la app _current siempre arranca en false hasta que
-      // algo lo corrija, así que sin esto la pantalla de verificación
-      // reaparecía en cada reinicio aunque la cuenta ya estuviera
-      // verificada, hasta que el sondeo de VerifyEmailScreen la
-      // "arreglaba" unos segundos después.
-      var emailVerified = user.emailVerified;
-      if (!emailVerified && _idToken != null) {
-        try {
-          final profile = await _itc.lookup(_idToken!);
-          emailVerified = profile['emailVerified'] as bool? ?? false;
-        } catch (_) {
-          // Sin red o token inválido: se queda con el valor conocido:
-          // no empeora nada, solo no lo confirma en este intento.
-        }
-      }
-
-      final base = data != null
-          ? SessionUser.fromFirestore(data, user.uid)
-          : SessionUser(
-              uid: user.uid,
-              role: UserRoleExt.fromName(roleName),
-              displayName: user.displayName ?? '',
-            );
-
-      final resolved = base.copyWith(
-        role: roleName != null ? UserRoleExt.fromName(roleName) : base.role,
-        displayName: base.displayName.isNotEmpty ? base.displayName : (user.displayName ?? ''),
-        email: user.email ?? base.email,
-        emailVerified: emailVerified,
-        photoUrl: user.photoUrl ?? base.photoUrl,
-        providers: user.providerIds,
+    // Un estudiante (uid == studentId) no tiene doc en users/{uid}
+    // — su nombre (el que le puso el padre/tutor) vive en
+    // students/{uid}. Sin este caso especial, displayName quedaba
+    // vacío ("Hola, ") porque el custom token tampoco trae nombre.
+    if (roleName == 'student') {
+      final studentDoc = await _firestore.getDoc(FirestorePaths.student(user.uid));
+      final resolved = SessionUser(
+        uid: user.uid,
+        role: UserRole.student,
+        displayName: studentDoc?.data['name'] as String? ?? '',
+        photoUrl: user.photoUrl,
       );
-      _current = user.copyWithVerified(emailVerified);
+      _current = user;
       return resolved;
-    } catch (e) {
-      debugPrint('[DesktopAuth] loadProfile: $e');
-      return null;
     }
+
+    final doc = await _firestore.getDoc('users/${user.uid}');
+    final data = doc?.data;
+
+    if (roleName == null && data == null) return null; // perfil incompleto (de verdad, no error)
+
+    // emailVerified se consulta de verdad en cada carga (no se
+    // confía en user.emailVerified, que viene de _current — recién
+    // reiniciada la app _current siempre arranca en false hasta que
+    // algo lo corrija, así que sin esto la pantalla de verificación
+    // reaparecía en cada reinicio aunque la cuenta ya estuviera
+    // verificada, hasta que el sondeo de VerifyEmailScreen la
+    // "arreglaba" unos segundos después.
+    var emailVerified = user.emailVerified;
+    if (!emailVerified && _idToken != null) {
+      try {
+        final profile = await _itc.lookup(_idToken!);
+        emailVerified = profile['emailVerified'] as bool? ?? false;
+      } catch (_) {
+        // Sin red o token inválido: se queda con el valor conocido:
+        // no empeora nada, solo no lo confirma en este intento.
+      }
+    }
+
+    final base = data != null
+        ? SessionUser.fromFirestore(data, user.uid)
+        : SessionUser(
+            uid: user.uid,
+            role: UserRoleExt.fromName(roleName),
+            displayName: user.displayName ?? '',
+          );
+
+    final resolved = base.copyWith(
+      role: roleName != null ? UserRoleExt.fromName(roleName) : base.role,
+      displayName: base.displayName.isNotEmpty ? base.displayName : (user.displayName ?? ''),
+      email: user.email ?? base.email,
+      emailVerified: emailVerified,
+      photoUrl: user.photoUrl ?? base.photoUrl,
+      providers: user.providerIds,
+    );
+    _current = user.copyWithVerified(emailVerified);
+    return resolved;
   }
 
   String? _decodeRoleClaim(String? idToken) {

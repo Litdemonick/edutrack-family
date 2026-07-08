@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:edutrack_family/core/data/local/models/student_model.dart';
@@ -6,6 +5,7 @@ import 'package:edutrack_family/core/data/local/repositories/student_repository.
 import 'package:edutrack_family/core/database/database_helper.dart';
 import 'package:edutrack_family/core/firebase/firestore_service.dart';
 import 'package:edutrack_family/core/services/api_client.dart';
+import 'package:edutrack_family/core/utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // FAMILY REPOSITORY — EduTrack Family 2.0
@@ -121,7 +121,7 @@ class FamilyRepository {
           .call('/delete-confirmation-status', {'requestId': requestId});
       return result['confirmed'] as bool? ?? false;
     } catch (e) {
-      debugPrint('[Family] checkDeleteConfirmed: $e');
+      AppLog.d('[Family] checkDeleteConfirmed: $e');
       return false;
     }
   }
@@ -141,7 +141,7 @@ class FamilyRepository {
         {'studentId': studentId, 'requestId': requestId},
       );
     } on ApiException catch (e) {
-      debugPrint('[Family] deleteChild: $e');
+      AppLog.d('[Family] deleteChild: $e');
       return e.message;
     } catch (e) {
       return 'Error de conexión.';
@@ -186,7 +186,7 @@ class FamilyRepository {
         permanent: result['permanent'] as bool? ?? false,
       );
     } on ApiException catch (e) {
-      debugPrint('[Family] createLinkCode: $e');
+      AppLog.d('[Family] createLinkCode: $e');
       return LinkCodeResult.fail(e.message);
     } catch (e) {
       return const LinkCodeResult.fail('Error de conexión.');
@@ -205,7 +205,7 @@ class FamilyRepository {
         teacherActive: result['teacherActive'] as bool? ?? false,
       );
     } catch (e) {
-      debugPrint('[Family] checkLinkCodeStatus: $e');
+      AppLog.d('[Family] checkLinkCodeStatus: $e');
       return const LinkCodeStatus.unknown();
     }
   }
@@ -252,7 +252,7 @@ class FamilyRepository {
           .toList();
       return LinkedTeachersResult.success(teachers);
     } on ApiException catch (e) {
-      debugPrint('[Family] getLinkedTeachers: $e');
+      AppLog.d('[Family] getLinkedTeachers: $e');
       return LinkedTeachersResult.fail(e.message);
     } catch (e) {
       return const LinkedTeachersResult.fail('Error de conexión.');

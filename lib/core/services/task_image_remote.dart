@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:edutrack_family/core/utils/app_log.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:edutrack_family/core/config/api_config.dart';
@@ -59,12 +59,12 @@ class TaskImageRemote {
         body: bytes,
       );
       if (res.statusCode >= 400) {
-        debugPrint('[TaskImageRemote] ✗ upload: ${res.statusCode} ${res.body}');
+        AppLog.d('[TaskImageRemote] ✗ upload: ${res.statusCode} ${res.body}');
         return false;
       }
       return true;
     } catch (e) {
-      debugPrint('[TaskImageRemote] ✗ upload: $e');
+      AppLog.d('[TaskImageRemote] ✗ upload: $e');
       return false;
     }
   }
@@ -91,13 +91,13 @@ class TaskImageRemote {
         }),
       );
       if (res.statusCode >= 400) {
-        debugPrint('[TaskImageRemote] ✗ list: ${res.statusCode} ${res.body}');
+        AppLog.d('[TaskImageRemote] ✗ list: ${res.statusCode} ${res.body}');
         return const [];
       }
       final decoded = jsonDecode(res.body) as Map<String, dynamic>;
       return (decoded['names'] as List? ?? []).cast<String>();
     } catch (e) {
-      debugPrint('[TaskImageRemote] ✗ list: $e');
+      AppLog.d('[TaskImageRemote] ✗ list: $e');
       return const [];
     }
   }
@@ -125,12 +125,12 @@ class TaskImageRemote {
       );
       if (res.statusCode == 404) return null;
       if (res.statusCode >= 400) {
-        debugPrint('[TaskImageRemote] ✗ download: ${res.statusCode} ${res.body}');
+        AppLog.d('[TaskImageRemote] ✗ download: ${res.statusCode} ${res.body}');
         return null;
       }
       return res.bodyBytes;
     } catch (e) {
-      debugPrint('[TaskImageRemote] ✗ download: $e');
+      AppLog.d('[TaskImageRemote] ✗ download: $e');
       return null;
     }
   }
@@ -156,10 +156,10 @@ class TaskImageRemote {
       // log, y las carpetas de R2 nunca se borraban sin que nada lo
       // avisara.
       if (res.statusCode >= 400) {
-        debugPrint('[TaskImageRemote] ✗ deleteAll: ${res.statusCode} ${res.body}');
+        AppLog.d('[TaskImageRemote] ✗ deleteAll: ${res.statusCode} ${res.body}');
       }
     } catch (e) {
-      debugPrint('[TaskImageRemote] ✗ deleteAll: $e');
+      AppLog.d('[TaskImageRemote] ✗ deleteAll: $e');
     }
   }
 }

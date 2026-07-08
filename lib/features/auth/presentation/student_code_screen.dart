@@ -8,6 +8,7 @@ import 'package:edutrack_family/core/utils/input_sanitizer.dart';
 import 'package:edutrack_family/features/auth/data/firebase_auth_repository.dart';
 import 'package:edutrack_family/features/safety/revocation_gate.dart';
 import 'widgets/auth_widgets.dart';
+import 'package:edutrack_family/core/utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // ACCESO DE ESTUDIANTE POR CÓDIGO — EduTrack Family 2.0
@@ -81,13 +82,13 @@ class _StudentCodeScreenState extends ConsumerState<StudentCodeScreen> {
       }
       // El router redirige a /student al detectar la sesión
     } on ApiException catch (e) {
-      debugPrint('[StudentCode] ApiException (${e.statusCode}): ${e.message}');
+      AppLog.d('[StudentCode] ApiException (${e.statusCode}): ${e.message}');
       setState(() => _error = e.message);
     } catch (e) {
       // Sin este log, cualquier falla no reconocida (red, TLS, JSON
       // inesperado del Worker, etc.) se mostraba siempre como el mismo
       // "revisa tu internet" genérico, sin forma de saber cuál fue.
-      debugPrint('[StudentCode] redeem falló: $e');
+      AppLog.d('[StudentCode] redeem falló: $e');
       setState(() => _error = 'Error de conexión. Revisa tu internet.');
     } finally {
       if (mounted) setState(() => _loading = false);

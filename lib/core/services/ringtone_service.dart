@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import '../utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // RINGTONE SERVICE — EduTrack Family
@@ -36,7 +37,7 @@ class RingtoneService {
         name: (raw['name'] as String?) ?? 'Predeterminado',
       );
     } on PlatformException catch (e) {
-      debugPrint('[RingtoneService] pick error: $e');
+      AppLog.d('[RingtoneService] pick error: $e');
       return null;
     }
   }
@@ -50,7 +51,7 @@ class RingtoneService {
     try {
       await _chRingtone.invokeMethod<void>('play', {'uri': uri});
     } on PlatformException catch (e) {
-      debugPrint('[RingtoneService] play error: $e');
+      AppLog.d('[RingtoneService] play error: $e');
     }
   }
 
@@ -87,7 +88,7 @@ class RingtoneService {
     try {
       await _chVibrate.invokeMethod<void>('vibrate', {'pattern': pattern});
     } on PlatformException catch (e) {
-      debugPrint('[RingtoneService] vibrate error: $e');
+      AppLog.d('[RingtoneService] vibrate error: $e');
     }
   }
 
@@ -107,7 +108,7 @@ class RingtoneService {
     try {
       await _chAlarm.invokeMethod<void>('loop', {'sound': sound});
     } on PlatformException catch (e) {
-      debugPrint('[RingtoneService] startAlarmLoop error: $e');
+      AppLog.d('[RingtoneService] startAlarmLoop error: $e');
     }
   }
 
@@ -116,7 +117,7 @@ class RingtoneService {
     try {
       await _chAlarm.invokeMethod<void>('stop');
     } on PlatformException catch (e) {
-      debugPrint('[RingtoneService] stopAlarmLoop error: $e');
+      AppLog.d('[RingtoneService] stopAlarmLoop error: $e');
     }
   }
 }

@@ -1,14 +1,13 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
-
 import '../database/database_helper.dart';
 import '../data/local/models/event_model.dart';
 import '../data/local/models/schedule_block_model.dart';
 import '../data/local/models/student_model.dart';
 import '../data/local/models/task_model.dart';
 import '../firebase/firestore_service.dart';
+import '../utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // SYNC SERVICE — EduTrack Family 2.0
@@ -81,7 +80,7 @@ class SyncService {
     final attempt = (_retryAttempts[key] ?? 0) + 1;
     _retryAttempts[key] = attempt;
     final delaySeconds = math.min(20, 1 << attempt); // 2,4,8,16,20,20...
-    debugPrint('[Sync] reconectando $key en ${delaySeconds}s (intento $attempt)');
+    AppLog.d('[Sync] reconectando $key en ${delaySeconds}s (intento $attempt)');
     _reconnectTimers[key] = Timer(Duration(seconds: delaySeconds), () {
       if (generation != _syncGeneration) return;
       if (!_studentIds.contains(sid)) return;
@@ -108,7 +107,7 @@ class SyncService {
       onTasksUpdated();
       onEventsUpdated();
     } catch (e) {
-      debugPrint('[Sync] initialSync falló: $e');
+      AppLog.d('[Sync] initialSync falló: $e');
     } finally {
       _isSyncing = false;
     }
@@ -153,7 +152,7 @@ class SyncService {
     if (currentSids.isNotEmpty &&
         currentSids.length == wantedSids.length &&
         currentSids.containsAll(wantedSids)) {
-      debugPrint('[Sync] startRealtimeSync: ya activo para los mismos '
+      AppLog.d('[Sync] startRealtimeSync: ya activo para los mismos '
           '${wantedSids.length} estudiante(s), no se rearma.');
       return;
     }
@@ -179,7 +178,7 @@ class SyncService {
       final isFirst = _firstSnapshot['tasks_$sid'] ?? true;
       _firstSnapshot['tasks_$sid'] = false;
       if (isFirst) {
-        debugPrint('[Sync] ✅ tasks($sid) LISTO — línea base establecida '
+        AppLog.d('[Sync] ✅ tasks($sid) LISTO — línea base establecida '
             '(${remoteTasks.length} docs). Cualquier cambio DE ACÁ EN '
             'ADELANTE sí va a notificar.');
       }
@@ -194,7 +193,7 @@ class SyncService {
         for (final row in localRows) row['id'] as String: TaskModel.fromMap(row)
       };
 
-      debugPrint('[Sync] tasks($sid) snapshot: ${remoteTasks.length} docs, isFirst=$isFirst');
+      AppLog.d('[Sync] tasks($sid) snapshot: ${remoteTasks.length} docs, isFirst=$isFirst');
       var changed = false;
       for (final remote in remoteTasks) {
         final local = localById[remote.id];
@@ -202,7 +201,7 @@ class SyncService {
           await db.insert(DatabaseHelper.tableTask, remote.toMap());
           changed = true;
           final shouldNotify = !isFirst && !remote.isDeleted && remote.isPending;
-          debugPrint('[Sync] tasks($sid): nueva tarea ${remote.id} '
+          AppLog.d('[Sync] tasks($sid): nueva tarea ${remote.id} '
               '(isFirst=$isFirst, isDeleted=${remote.isDeleted}, '
               'isPending=${remote.isPending}, shouldNotify=$shouldNotify, '
               'callback=${_onNewTaskReceived != null})');
@@ -219,7 +218,7 @@ class SyncService {
       }
       if (changed) _onTasksUpdated?.call();
     }, onError: (e) {
-      debugPrint('[Sync] stream tasks($sid): $e');
+      AppLog.d('[Sync] stream tasks($sid): $e');
       _scheduleReconnect(
           'tasks_$sid', sid, generation, () => _subscribeTasks(sid, generation));
     });
@@ -233,7 +232,7 @@ class SyncService {
       final isFirst = _firstSnapshot['events_$sid'] ?? true;
       _firstSnapshot['events_$sid'] = false;
       if (isFirst) {
-        debugPrint('[Sync] ✅ events($sid) LISTO — línea base establecida '
+        AppLog.d('[Sync] ✅ events($sid) LISTO — línea base establecida '
             '(${remoteEvents.length} docs). Cualquier cambio DE ACÁ EN '
             'ADELANTE sí va a notificar.');
       }
@@ -269,7 +268,7 @@ class SyncService {
       }
       if (changed) _onEventsUpdated?.call();
     }, onError: (e) {
-      debugPrint('[Sync] stream events($sid): $e');
+      AppLog.d('[Sync] stream events($sid): $e');
       _scheduleReconnect('events_$sid', sid, generation,
           () => _subscribeEvents(sid, generation));
     });
@@ -306,7 +305,7 @@ class SyncService {
         }
       }
     }, onError: (e) {
-      debugPrint('[Sync] stream schedule($sid): $e');
+      AppLog.d('[Sync] stream schedule($sid): $e');
       _scheduleReconnect('schedule_$sid', sid, generation,
           () => _subscribeSchedule(sid, generation));
     });
@@ -358,7 +357,7 @@ class SyncService {
         await _pullScheduleBlocks(sid);
       }
     } catch (e) {
-      debugPrint('[Sync] fullSync falló: $e');
+      AppLog.d('[Sync] fullSync falló: $e');
     } finally {
       _isSyncing = false;
     }
@@ -374,7 +373,7 @@ class SyncService {
         await FirestoreService.instance.uploadTask(_stripLocalPaths(task));
         await db.setDirty(DatabaseHelper.tableTask, task.id, false);
       } catch (e) {
-        debugPrint('[Sync] push dirty task ${task.id}: $e');
+        AppLog.d('[Sync] push dirty task ${task.id}: $e');
       }
     }
 
@@ -385,7 +384,7 @@ class SyncService {
         await FirestoreService.instance.uploadEvent(event);
         await db.setDirty(DatabaseHelper.tableEvent, event.id, false);
       } catch (e) {
-        debugPrint('[Sync] push dirty event ${event.id}: $e');
+        AppLog.d('[Sync] push dirty event ${event.id}: $e');
       }
     }
 
@@ -395,7 +394,7 @@ class SyncService {
         await FirestoreService.instance.uploadScheduleBlock(block);
         await db.setDirty(DatabaseHelper.tableScheduleBlock, block.id, false);
       } catch (e) {
-        debugPrint('[Sync] push dirty block ${block.id}: $e');
+        AppLog.d('[Sync] push dirty block ${block.id}: $e');
       }
     }
   }
@@ -410,7 +409,7 @@ class SyncService {
 
     final isFirstPull = !(_hasPulledBefore['tasks_$sid'] ?? false);
     _hasPulledBefore['tasks_$sid'] = true;
-    debugPrint('[Sync] _pullTasks($sid): ${remoteTasks.length} docs desde '
+    AppLog.d('[Sync] _pullTasks($sid): ${remoteTasks.length} docs desde '
         '$since, isFirstPull=$isFirstPull');
 
     for (final remote in remoteTasks) {
@@ -418,7 +417,7 @@ class SyncService {
       if (localRow == null) {
         await db.insert(DatabaseHelper.tableTask, remote.toMap());
         final shouldNotify = !isFirstPull && !remote.isDeleted && remote.isPending;
-        debugPrint('[Sync] _pullTasks($sid): tarea nueva ${remote.id} '
+        AppLog.d('[Sync] _pullTasks($sid): tarea nueva ${remote.id} '
             'shouldNotify=$shouldNotify callback=${_onNewTaskReceived != null}');
         if (shouldNotify && _onNewTaskReceived != null) {
           _onNewTaskReceived!(remote);
@@ -448,7 +447,7 @@ class SyncService {
 
     final isFirstPull = !(_hasPulledBefore['events_$sid'] ?? false);
     _hasPulledBefore['events_$sid'] = true;
-    debugPrint('[Sync] _pullEvents($sid): ${remoteEvents.length} docs desde '
+    AppLog.d('[Sync] _pullEvents($sid): ${remoteEvents.length} docs desde '
         '$since, isFirstPull=$isFirstPull');
 
     for (final remote in remoteEvents) {
@@ -456,7 +455,7 @@ class SyncService {
       if (localRow == null) {
         await db.insert(DatabaseHelper.tableEvent, remote.toMap());
         final shouldNotify = !isFirstPull && !remote.isDeleted;
-        debugPrint('[Sync] _pullEvents($sid): evento nuevo ${remote.id} '
+        AppLog.d('[Sync] _pullEvents($sid): evento nuevo ${remote.id} '
             'shouldNotify=$shouldNotify callback=${_onNewEventReceived != null}');
         if (shouldNotify && _onNewEventReceived != null) {
           _onNewEventReceived!(remote);
@@ -495,7 +494,7 @@ class SyncService {
       await DatabaseHelper.instance
           .setDirty(DatabaseHelper.tableTask, task.id, false);
     } catch (e) {
-      debugPrint('[Sync] pushTask offline/error (${task.id}), queda dirty: $e');
+      AppLog.d('[Sync] pushTask offline/error (${task.id}), queda dirty: $e');
     }
   }
 
@@ -506,7 +505,7 @@ class SyncService {
       await DatabaseHelper.instance
           .setDirty(DatabaseHelper.tableEvent, event.id, false);
     } catch (e) {
-      debugPrint('[Sync] pushEvent offline/error (${event.id}): $e');
+      AppLog.d('[Sync] pushEvent offline/error (${event.id}): $e');
     }
   }
 
@@ -516,7 +515,7 @@ class SyncService {
       await DatabaseHelper.instance
           .setDirty(DatabaseHelper.tableStudent, student.id, false);
     } catch (e) {
-      debugPrint('[Sync] pushStudent offline/error (${student.id}): $e');
+      AppLog.d('[Sync] pushStudent offline/error (${student.id}): $e');
     }
   }
 

@@ -67,6 +67,7 @@ import 'core/features/admin/events/edit_event_screen.dart';
 import 'core/features/admin/events/event_detail_screen.dart';
 import 'core/features/settings/settings_screen.dart';
 import 'core/features/notifications/notifications_screen.dart';
+import 'core/utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // ROUTER PROVIDER
@@ -447,7 +448,7 @@ class _EduTrackAppState extends ConsumerState<EduTrackApp>
     SyncService.instance.startRealtimeSync(
       onNewTaskReceived: (task) async {
         final currentUser = ref.read(authProvider);
-        debugPrint('[Notif] onNewTaskReceived: task=${task.id} '
+        AppLog.d('[Notif] onNewTaskReceived: task=${task.id} '
             'assignedBy=${task.assignedBy} currentUser=${currentUser?.uid} '
             'isAdmin=${currentUser?.isAdmin}');
         if (currentUser == null) return;
@@ -528,7 +529,7 @@ class _EduTrackAppState extends ConsumerState<EduTrackApp>
           final isOtherAdultAction = newTask.assignedBy != null &&
               newTask.assignedBy != currentUser.uid;
           final deleted = !oldTask.isDeleted && newTask.isDeleted;
-          debugPrint('[Notif] onTaskUpdated (admin): task=${newTask.id} '
+          AppLog.d('[Notif] onTaskUpdated (admin): task=${newTask.id} '
               'deleted=$deleted assignedBy=${newTask.assignedBy} '
               'assignedByRole=${newTask.assignedByRole} '
               'currentUser=${currentUser.uid} role=${currentUser.role.name} '
@@ -634,7 +635,7 @@ class _EduTrackAppState extends ConsumerState<EduTrackApp>
       },
       onNewEventReceived: (event) async {
         final currentUser = ref.read(authProvider);
-        debugPrint('[Notif] onNewEventReceived: event=${event.id} '
+        AppLog.d('[Notif] onNewEventReceived: event=${event.id} '
             'assignedBy=${event.assignedBy} currentUser=${currentUser?.uid} '
             'isAdmin=${currentUser?.isAdmin}');
         if (currentUser == null) return;
@@ -669,7 +670,7 @@ class _EduTrackAppState extends ConsumerState<EduTrackApp>
         final currentUser = ref.read(authProvider);
         if (currentUser == null) return;
         final isCreator = newEvent.assignedBy != null && newEvent.assignedBy == currentUser.uid;
-        debugPrint('[Notif] onEventUpdated: event=${newEvent.id} '
+        AppLog.d('[Notif] onEventUpdated: event=${newEvent.id} '
             'assignedBy=${newEvent.assignedBy} currentUser=${currentUser.uid} '
             'isCreator=$isCreator isAdmin=${currentUser.isAdmin}');
         if (isCreator) return;
@@ -785,7 +786,7 @@ class _EduTrackAppState extends ConsumerState<EduTrackApp>
           );
         }
       } catch (e) {
-        debugPrint('[SeismicPoll] error: $e');
+        AppLog.d('[SeismicPoll] error: $e');
       }
     }
     _seismicPollPrimed = true;

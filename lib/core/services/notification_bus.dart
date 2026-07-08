@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/local/models/notification_model.dart';
@@ -7,6 +6,7 @@ import '../providers/notification_provider.dart';
 import '../constants/utils/notification_utils.dart';
 import '../services/app_lifecycle_service.dart';
 import '../services/push_queue_service.dart';
+import '../utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // NOTIFICATION BUS — EduTrack Family
@@ -170,7 +170,7 @@ class NotificationBus {
     final localTitle = actorTitle ?? title;
     final localBody = actorBody ?? body;
 
-    debugPrint('[Notif] _dispatch → campana: "$localTitle" / "$localBody" '
+    AppLog.d('[Notif] _dispatch → campana: "$localTitle" / "$localBody" '
         '(taskId=$taskId eventId=$eventId targetUids=$targetUids)');
 
     // ── 1️⃣ Notificación interna (campana dentro de la app) ────

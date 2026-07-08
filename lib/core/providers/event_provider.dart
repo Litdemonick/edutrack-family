@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:edutrack_family/core/data/local/models/event_model.dart';
@@ -14,6 +13,7 @@ import 'package:edutrack_family/core/providers/auth_provider.dart';
 import 'package:edutrack_family/core/providers/connectivity_provider.dart';
 import 'package:edutrack_family/core/providers/family_provider.dart';
 import 'package:edutrack_family/core/utils/role_copy.dart';
+import 'package:edutrack_family/core/utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // EVENT PROVIDER — EduTrack Family 2.0
@@ -60,7 +60,7 @@ class EventNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
       if (!hasData) {
         state = AsyncValue.error(e, st);
       } else {
-        debugPrint('[EventProvider] Error recargando eventos: $e');
+        AppLog.d('[EventProvider] Error recargando eventos: $e');
       }
     }
   }
@@ -126,7 +126,7 @@ class EventNotifier extends StateNotifier<AsyncValue<List<EventModel>>> {
   }) async {
     final sid = studentId ?? _scopeStudentId;
     if (sid == null) {
-      debugPrint('[EventProvider] createEvent sin estudiante activo');
+      AppLog.d('[EventProvider] createEvent sin estudiante activo');
       return;
     }
     final creator = _ref.read(authProvider);

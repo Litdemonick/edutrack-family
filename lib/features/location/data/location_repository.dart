@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:edutrack_family/core/firebase/firestore_paths.dart';
@@ -10,6 +9,7 @@ import 'package:edutrack_family/core/firebase/firestore_service.dart';
 import 'package:edutrack_family/core/firebase/platform/firebase_backend.dart';
 import 'package:edutrack_family/core/firebase/rest/polling_stream.dart';
 import 'location_models.dart';
+import 'package:edutrack_family/core/utils/app_log.dart';
 
 // ═══════════════════════════════════════════════════════════════
 // LOCATION REPOSITORY — EduTrack Family 2.0
@@ -85,7 +85,7 @@ class LocationRepository {
     try {
       return LocationPoint.fromFirestore(data);
     } catch (e) {
-      debugPrint('[Location] current malformado: $e');
+      AppLog.d('[Location] current malformado: $e');
       return null;
     }
   }
@@ -108,7 +108,7 @@ class LocationRepository {
       try {
         return LocationPoint.fromFirestore(data);
       } catch (e) {
-        debugPrint('[Location] current malformado: $e');
+        AppLog.d('[Location] current malformado: $e');
         return null;
       }
     });
@@ -138,7 +138,7 @@ class LocationRepository {
       }
       return points.take(limit).toList().reversed.toList();
     } catch (e) {
-      debugPrint('[Location] historial: $e');
+      AppLog.d('[Location] historial: $e');
       return const [];
     }
   }
