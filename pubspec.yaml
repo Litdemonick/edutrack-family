@@ -166,8 +166,6 @@ flutter:
     - assets/icons/
     # Sonidos para notificaciones
     - assets/sounds/
-    # Animaciones Lottie (JSON)
-    - assets/animations/
 
   fonts:
     # Poppins - fuente principal UI
