@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>EduTrack Family — Descargas</title>
-<meta name="description" content="Descarga EduTrack Family para Android y Windows.">
+<meta name="description" content="Descarga EduTrack Family para Android y Windows. Historial de versiones y novedades.">
 <style>
   :root {
     --navy: #0F2744;
@@ -13,6 +13,7 @@
     --card: #FFFFFF;
     --text: #1A2530;
     --muted: #5B6B7A;
+    --border: #E3E8EE;
   }
   * { box-sizing: border-box; }
   body {
@@ -21,59 +22,94 @@
     background: var(--bg);
     color: var(--text);
   }
-  header {
+  a { color: var(--blue); }
+
+  /* ── Barra superior ─────────────────────────────────────── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    background: var(--navy);
+    color: #fff;
+  }
+  .topbar .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 800;
+    font-size: 15px;
+  }
+  .topbar .brand .emoji { font-size: 18px; }
+  .topbar nav a {
+    color: #cfe0f5;
+    text-decoration: none;
+    font-size: 14px;
+    margin-left: 20px;
+  }
+  .topbar nav a:hover { color: #fff; }
+
+  /* ── Hero ───────────────────────────────────────────────── */
+  header.hero {
     background: linear-gradient(135deg, var(--navy), #16406e);
     color: #fff;
-    padding: 56px 24px 64px;
+    padding: 48px 24px 64px;
     text-align: center;
   }
-  header .logo {
-    width: 84px;
-    height: 84px;
-    border-radius: 20px;
-    margin-bottom: 16px;
-  }
-  header h1 {
+  header.hero .logo { font-size: 56px; margin-bottom: 12px; }
+  header.hero h1 {
     margin: 0 0 8px;
     font-size: 30px;
     font-weight: 800;
   }
-  header p {
+  header.hero p {
     margin: 0;
     opacity: 0.85;
     max-width: 480px;
     margin-inline: auto;
     line-height: 1.5;
   }
+  .version-badge {
+    display: inline-block;
+    margin-top: 14px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 999px;
+    padding: 5px 14px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
   main {
     max-width: 720px;
-    margin: -36px auto 48px;
+    margin: -36px auto 0;
     padding: 0 20px;
   }
+  section { margin-bottom: 40px; }
+  h2.section-title {
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin: 0 0 14px;
+    padding-left: 4px;
+  }
+
+  /* ── Tarjetas de descarga ───────────────────────────────── */
   .card {
     background: var(--card);
     border-radius: 16px;
     box-shadow: 0 8px 24px rgba(15, 39, 68, 0.10);
     padding: 24px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     display: flex;
     align-items: center;
     gap: 18px;
   }
-  .card .emoji {
-    font-size: 40px;
-    flex-shrink: 0;
-  }
+  .card .emoji { font-size: 40px; flex-shrink: 0; }
   .card .info { flex: 1; min-width: 0; }
-  .card h2 {
-    margin: 0 0 4px;
-    font-size: 18px;
-  }
-  .card p {
-    margin: 0;
-    color: var(--muted);
-    font-size: 14px;
-  }
+  .card h3 { margin: 0 0 4px; font-size: 18px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14px; }
   .btn {
     display: inline-block;
     background: var(--blue);
@@ -92,66 +128,166 @@
     color: #6b7480;
     pointer-events: none;
   }
+
+  /* ── Novedades / changelog ──────────────────────────────── */
+  .changelog-entry {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .changelog-entry .meta {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .changelog-entry .ver {
+    font-weight: 800;
+    font-size: 16px;
+    color: var(--navy);
+  }
+  .changelog-entry .date {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .tag {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #E3F2FD;
+    color: #1565C0;
+  }
+  .changelog-entry ul {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .changelog-entry ul li::marker { color: var(--blue); }
+
   .note {
     text-align: center;
     color: var(--muted);
     font-size: 13px;
-    margin-top: 28px;
     line-height: 1.6;
   }
+
+  /* ── Footer ─────────────────────────────────────────────── */
+  footer {
+    background: var(--navy);
+    color: #b9c8db;
+    text-align: center;
+    padding: 28px 20px;
+    font-size: 13px;
+    margin-top: 24px;
+  }
+  footer a { color: #cfe0f5; }
+  footer .foot-links { margin-bottom: 10px; }
+  footer .foot-links a { margin: 0 10px; text-decoration: none; }
+  footer .foot-links a:hover { text-decoration: underline; }
+
   @media (max-width: 480px) {
     .card { flex-direction: column; text-align: center; }
     .btn { width: 100%; text-align: center; }
+    .topbar nav a { margin-left: 12px; }
   }
 </style>
 </head>
 <body>
-  <header>
+  <div class="topbar">
+    <div class="brand"><span class="emoji">🎓</span> EduTrack Family</div>
+    <nav>
+      <a href="#descargas">Descargas</a>
+      <a href="#novedades">Novedades</a>
+      <a href="https://github.com/Litdemonick/edutrack-family">GitHub</a>
+    </nav>
+  </div>
+
+  <header class="hero">
     <div class="logo">🎓</div>
     <h1>EduTrack Family</h1>
     <p>App para que padres/tutores, profesores y estudiantes gestionen tareas, eventos y seguridad escolar en un solo lugar.</p>
+    <div class="version-badge">Versión actual: 2.0.0</div>
   </header>
 
   <main>
-    <div class="card">
-      <div class="emoji">🤖</div>
-      <div class="info">
-        <h2>Android</h2>
-        <p>Archivo .apk — habilita "orígenes desconocidos" al instalar.</p>
-      </div>
-      <a class="btn" href="https://github.com/Litdemonick/edutrack-family/releases/latest/download/app-release.apk">Descargar</a>
-    </div>
+    <section id="descargas">
+      <h2 class="section-title">Descargas</h2>
 
-    <div class="card">
-      <div class="emoji">🪟</div>
-      <div class="info">
-        <h2>Windows</h2>
-        <p>Instalador .exe — Windows 10/11 de 64 bits.</p>
+      <div class="card">
+        <div class="emoji">🤖</div>
+        <div class="info">
+          <h3>Android</h3>
+          <p>Archivo .apk — habilita "orígenes desconocidos" al instalar.</p>
+        </div>
+        <a class="btn" href="https://github.com/Litdemonick/edutrack-family/releases/latest/download/app-release.apk">Descargar</a>
       </div>
-      <a class="btn" href="https://github.com/Litdemonick/edutrack-family/releases/latest/download/EduTrackFamily-Setup-2.0.0.exe">Descargar</a>
-    </div>
 
-    <div class="card disabled">
-      <div class="emoji">🐧</div>
-      <div class="info">
-        <h2>Linux</h2>
-        <p>Próximamente.</p>
+      <div class="card">
+        <div class="emoji">🪟</div>
+        <div class="info">
+          <h3>Windows</h3>
+          <p>Instalador .exe — Windows 10/11 de 64 bits.</p>
+        </div>
+        <a class="btn" href="https://github.com/Litdemonick/edutrack-family/releases/latest/download/EduTrackFamily-Setup-2.0.0.exe">Descargar</a>
       </div>
-      <a class="btn" href="#">Pronto</a>
-    </div>
 
-    <div class="card disabled">
-      <div class="emoji">🍎</div>
-      <div class="info">
-        <h2>iOS / macOS</h2>
-        <p>Próximamente.</p>
+      <div class="card disabled">
+        <div class="emoji">🐧</div>
+        <div class="info">
+          <h3>Linux</h3>
+          <p>Próximamente.</p>
+        </div>
+        <a class="btn" href="#">Pronto</a>
       </div>
-      <a class="btn" href="#">Pronto</a>
-    </div>
 
-    <p class="note">
-      Todas las versiones en <a href="https://github.com/Litdemonick/edutrack-family/releases">GitHub Releases</a>.
-    </p>
+      <div class="card disabled">
+        <div class="emoji">🍎</div>
+        <div class="info">
+          <h3>iOS / macOS</h3>
+          <p>Próximamente.</p>
+        </div>
+        <a class="btn" href="#">Pronto</a>
+      </div>
+
+      <p class="note">
+        Todas las versiones (incluidas las anteriores) en <a href="https://github.com/Litdemonick/edutrack-family/releases">GitHub Releases</a>.
+      </p>
+    </section>
+
+    <section id="novedades">
+      <h2 class="section-title">Novedades</h2>
+
+      <div class="changelog-entry">
+        <div class="meta">
+          <span class="ver">v2.0.0</span>
+          <span class="tag">Actual</span>
+          <span class="date">Julio 2026</span>
+        </div>
+        <ul>
+          <li>Primera versión pública para Android y Windows.</li>
+          <li>Ubicación en tiempo real, zonas seguras y check-in "¿Estás bien?" para padres/tutores.</li>
+          <li>Alerta sísmica con sonido y vibración en bucle, visible para toda la familia (padre/tutor, profesor y estudiante).</li>
+          <li>Notificaciones que avisan quién hizo qué (tarea/evento) y a quién.</li>
+          <li>Corrección: un error de red pasajero ya no manda a un usuario registrado de vuelta a "elegir rol".</li>
+          <li>Ajustes de rendimiento y estabilidad en pantallas de tareas, eventos y familia.</li>
+        </ul>
+      </div>
+    </section>
   </main>
+
+  <footer>
+    <div class="foot-links">
+      <a href="https://github.com/Litdemonick/edutrack-family">Código fuente</a>
+      <a href="https://github.com/Litdemonick/edutrack-family/releases">Releases</a>
+      <a href="https://github.com/Litdemonick/edutrack-family/issues">Reportar un problema</a>
+    </div>
+    EduTrack Family — hecho con Flutter.
+  </footer>
 </body>
 </html>
