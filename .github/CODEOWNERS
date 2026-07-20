@@ -1,33 +1,39 @@
 # ═══════════════════════════════════════════════════════════════
 # CODEOWNERS — EduTrack Family 2.0
-# Reemplaza los @usuario-github por los usuarios reales del equipo.
+# Reemplaza los @TODO-... por los usuarios reales de GitHub del equipo.
 # GitHub pedirá review del dueño cuando un PR toque su zona.
 # ═══════════════════════════════════════════════════════════════
 
-# Zona A — Núcleo, Auth y Familia (líder)
-/lib/app/                 @LIDER
-/lib/core/                @LIDER
-/lib/features/auth/       @LIDER
-/lib/features/family/     @LIDER
-/lib/features/shells/     @LIDER
-/firestore.rules          @LIDER
-/storage.rules            @LIDER
-/workers/                 @LIDER
-/.github/                 @LIDER
+# Zona A — Núcleo, Auth y Familia (líder) — Carlos Miranda
+/lib/app.dart              @TODO-carlos-miranda-github
+/lib/core/                 @TODO-carlos-miranda-github
+/lib/features/auth/        @TODO-carlos-miranda-github
+/lib/features/family/      @TODO-carlos-miranda-github
+/firestore.rules           @TODO-carlos-miranda-github
+/storage.rules             @TODO-carlos-miranda-github
+/workers/                  @TODO-carlos-miranda-github
+/.github/                  @TODO-carlos-miranda-github
 
-# Zona B — Tareas y Evidencias
-/lib/features/tasks/      @DEV2
-/lib/features/evidence/   @DEV2
+# Zona B — Tareas y Evidencias — Eddie Man
+/lib/core/features/admin/tasks/       @TODO-eddie-man-github
+/lib/core/features/admin/evidence/    @TODO-eddie-man-github
+/lib/core/features/student/tasks/     @TODO-eddie-man-github
+/lib/core/providers/task_provider.dart  @TODO-eddie-man-github
 
-# Zona C — Eventos, Horario, Calendario y Stats
-/lib/features/events/     @DEV3
-/lib/features/schedule/   @DEV3
-/lib/features/stats/      @DEV3
+# Zona C — Eventos, Horario, Calendario y Stats — Eliecias Cubilla
+/lib/core/features/admin/events/       @TODO-eliecias-cubilla-github
+/lib/core/features/student/events/     @TODO-eliecias-cubilla-github
+/lib/core/features/student/calendar/   @TODO-eliecias-cubilla-github
+/lib/core/providers/event_provider.dart    @TODO-eliecias-cubilla-github
+/lib/core/providers/schedule_provider.dart @TODO-eliecias-cubilla-github
+/lib/core/providers/stats_provider.dart    @TODO-eliecias-cubilla-github
 
-# Zona D — Ubicación y Seguridad
-/lib/features/location/   @DEV4
-/lib/features/safety/     @DEV4
+# Zona D — Ubicación y Seguridad — Brayan Quintero
+/lib/features/location/    @TODO-brayan-quintero-github
+/lib/features/safety/      @TODO-brayan-quintero-github
 
-# Zona E — Notificaciones y Ajustes
-/lib/features/notifications/  @DEV5
-/lib/features/settings/       @DEV5
+# Zona E — Notificaciones y Ajustes — Jorge Jiménez
+/lib/core/features/notifications/          @TODO-jorge-jimenez-github
+/lib/core/features/settings/               @TODO-jorge-jimenez-github
+/lib/core/services/fcm_service.dart        @TODO-jorge-jimenez-github
+/lib/core/services/notification_bus.dart   @TODO-jorge-jimenez-github
