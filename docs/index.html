@@ -1,0 +1,883 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EduTrack Family — Descargas</title>
+<meta name="description" content="Descarga EduTrack Family para Android y Windows. Requisitos, novedades, historial de versiones y el equipo detrás del proyecto.">
+<style>
+  :root {
+    --navy: #0F2744;
+    --navy-2: #16406e;
+    --blue: #2196F3;
+    --bg: #F4F6F9;
+    --card: #FFFFFF;
+    --panel-bar: #EEF2F7;
+    --text: #1A2530;
+    --muted: #5B6B7A;
+    --border: #E3E8EE;
+    --warn-bg: #FFF8E1;
+    --warn-border: #F5D98B;
+    --warn-text: #6B5300;
+    --tag-bg: #E3F2FD;
+    --tag-text: #1565C0;
+    --shadow: 0 10px 28px rgba(15, 39, 68, 0.07);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0B1220; --card: #151E2E; --panel-bar: #101828; --text: #E8EDF3; --muted: #93A2B5;
+      --border: #24324A; --warn-bg: #2A2107; --warn-border: #6B5300; --warn-text: #E8C766;
+      --tag-bg: #12314F; --tag-text: #7CC0FF; --shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0B1220; --card: #151E2E; --panel-bar: #101828; --text: #E8EDF3; --muted: #93A2B5;
+    --border: #24324A; --warn-bg: #2A2107; --warn-border: #6B5300; --warn-text: #E8C766;
+    --tag-bg: #12314F; --tag-text: #7CC0FF; --shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #F4F6F9; --card: #FFFFFF; --panel-bar: #EEF2F7; --text: #1A2530; --muted: #5B6B7A;
+    --border: #E3E8EE; --warn-bg: #FFF8E1; --warn-border: #F5D98B; --warn-text: #6B5300;
+    --tag-bg: #E3F2FD; --tag-text: #1565C0; --shadow: 0 10px 28px rgba(15, 39, 68, 0.07);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { overflow-x: hidden; scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    overflow-x: hidden;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    transition: background 0.2s ease, color 0.2s ease;
+    -webkit-text-size-adjust: 100%;
+  }
+  a { color: var(--blue); }
+  img, svg { max-width: 100%; }
+
+  /* ── Barra superior ─────────────────────────────────────── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 20px;
+    background: var(--navy);
+    color: #fff;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    column-gap: 18px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .topbar .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 800;
+    font-size: 15px;
+    margin-right: auto;
+  }
+  .topbar .brand .emoji { font-size: 18px; }
+  .topbar nav {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 6px;
+    column-gap: 18px;
+  }
+  .topbar nav a {
+    position: relative;
+    color: #cfe0f5;
+    text-decoration: none;
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 4px 2px;
+    transition: color 0.2s ease;
+  }
+  .topbar nav a::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 100%;
+    bottom: -3px;
+    height: 2px;
+    background: var(--blue);
+    border-radius: 2px;
+    transition: right 0.25s ease;
+  }
+  .topbar nav a:hover { color: #fff; }
+  .topbar nav a:hover::after { right: 0; }
+  /* Pestaña activa: el nav de arriba ES la navegación de pestañas,
+     no hay una segunda barra de botones adentro del marco. */
+  .topbar nav a.active { color: #fff; }
+  .topbar nav a.active::after { right: 0; }
+  .theme-toggle {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
+    border-radius: 999px;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: background 0.2s ease, transform 0.4s ease;
+  }
+  .theme-toggle:hover { background: rgba(255,255,255,0.22); }
+  .theme-toggle.spin { transform: rotate(180deg); }
+
+  /* ── Hero ───────────────────────────────────────────────── */
+  header.hero {
+    background:
+      radial-gradient(circle at 15% 20%, rgba(33,150,243,0.25), transparent 45%),
+      radial-gradient(circle at 85% 75%, rgba(255,255,255,0.08), transparent 40%),
+      linear-gradient(135deg, var(--navy), var(--navy-2));
+    background-size: 140% 140%;
+    animation: heroGradient 14s ease-in-out infinite;
+    color: #fff;
+    padding: clamp(56px, 10vw, 84px) 20px clamp(88px, 14vw, 116px);
+    text-align: center;
+    overflow: hidden;
+  }
+  @keyframes heroGradient {
+    0%, 100% { background-position: 0% 0%; }
+    50% { background-position: 100% 60%; }
+  }
+  header.hero .logo { font-size: clamp(44px, 10vw, 58px); margin-bottom: 16px; display: inline-block; }
+  @keyframes floatY {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  header.hero h1 {
+    margin: 0 0 12px;
+    font-size: clamp(28px, 6.5vw, 40px);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+  header.hero p {
+    margin: 0 auto;
+    opacity: 0.82;
+    max-width: 440px;
+    line-height: 1.6;
+    font-size: clamp(14px, 3.5vw, 16px);
+  }
+  header.hero .logo, header.hero h1, header.hero p, header.hero .version-badge {
+    animation: fadeInUp 0.7s ease both;
+  }
+  header.hero .logo { animation: fadeInUp 0.7s ease both, floatY 5s ease-in-out 0.7s infinite; }
+  header.hero h1 { animation-delay: 0.08s; }
+  header.hero p { animation-delay: 0.16s; }
+  header.hero .version-badge { animation-delay: 0.24s; }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .version-badge {
+    display: inline-block;
+    margin-top: 18px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 999px;
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  /* ── Marco de pestañas: TODO el contenido vive adentro de este
+     único bloque centrado, con ancho fijo — nada se sale del
+     marco ni se va de borde a borde de la pantalla. ──────────── */
+  .tabs-wrap {
+    max-width: 940px;
+    margin: -56px auto 60px;
+    padding: 0 16px;
+    position: relative;
+    z-index: 2;
+  }
+  .tabs-frame {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    box-shadow: 0 20px 50px rgba(15, 39, 68, 0.14);
+    overflow: hidden;
+  }
+  .tab-panel { padding: clamp(24px, 5vw, 40px); }
+  .tab-panel[hidden] { display: none; }
+  .tab-panel.entering { animation: panelIn 0.45s ease both; }
+  @keyframes panelIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .panel-intro { text-align: center; margin-bottom: 28px; }
+  .panel-intro h2 { margin: 0 0 8px; font-size: clamp(20px, 4vw, 25px); font-weight: 800; }
+  .panel-intro p { margin: 0 auto; max-width: 420px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+
+  /* ── Features: cada una es SU PROPIA tarjeta ─────────────── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+  }
+  .feature-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px 18px;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  .feature-card:hover {
+    transform: translateY(-5px);
+    border-color: var(--blue);
+    box-shadow: 0 14px 26px rgba(33, 150, 243, 0.14);
+  }
+  .feature-card .emoji {
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 19px;
+    background: var(--tag-bg);
+    border-radius: 11px;
+    margin-bottom: 12px;
+    transition: transform 0.25s ease;
+  }
+  .feature-card:hover .emoji { transform: scale(1.1) rotate(-4deg); }
+  .feature-card h4 { margin: 0 0 5px; font-size: 14.5px; }
+  .feature-card p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+  .roles-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 18px;
+  }
+  .role-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    padding: 14px 8px;
+    text-align: center;
+    transition: transform 0.25s ease, border-color 0.25s ease;
+  }
+  .role-card:hover { transform: translateY(-3px); border-color: var(--blue); }
+  .role-card .emoji { font-size: 22px; margin-bottom: 5px; transition: transform 0.25s ease; }
+  .role-card:hover .emoji { transform: scale(1.15); }
+  .role-card span { display: block; font-size: 12.5px; font-weight: 700; }
+
+  /* ── Tarjetas de descarga ───────────────────────────────── */
+  .download-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  .card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px 18px;
+    text-align: center;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  .card:not(.disabled):hover {
+    transform: translateY(-5px);
+    border-color: var(--blue);
+    box-shadow: 0 14px 26px rgba(33, 150, 243, 0.14);
+  }
+  .card .emoji { font-size: 36px; margin-bottom: 10px; display: inline-block; transition: transform 0.25s ease; }
+  .card:not(.disabled):hover .emoji { transform: scale(1.12); }
+  .card h3 {
+    margin: 0 0 4px;
+    font-size: 15.5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .card .ver-chip {
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--tag-bg);
+    color: var(--tag-text);
+  }
+  .card p { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 44px;
+    background: var(--blue);
+    color: #fff;
+    text-decoration: none;
+    font-weight: 700;
+    padding: 10px 18px;
+    border-radius: 10px;
+    transition: background 0.2s ease, transform 0.2s ease;
+  }
+  .btn:hover { background: #1976D2; transform: translateY(-2px); }
+  .btn:active { transform: translateY(0); }
+  .card.disabled { opacity: 0.55; }
+  .card.disabled .btn { background: #C7CDD3; color: #6b7480; pointer-events: none; }
+
+  .warn-box {
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--warn-text);
+    margin-bottom: 22px;
+  }
+  .warn-box strong { display: block; margin-bottom: 8px; font-size: 14px; }
+  .warn-box ol { margin: 10px 0 0; padding-left: 20px; }
+  .warn-box li { margin-bottom: 6px; }
+
+  .all-versions-link {
+    display: block;
+    text-align: center;
+    margin-top: 4px;
+    font-weight: 700;
+    font-size: 13.5px;
+    text-decoration: none;
+  }
+
+  /* ── Requisitos ─────────────────────────────────────────── */
+  .req-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+  }
+  .req-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px 18px;
+    transition: transform 0.25s ease, border-color 0.25s ease;
+  }
+  .req-card:hover { transform: translateY(-3px); border-color: var(--blue); }
+  .req-card .req-head { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; }
+  .req-card .req-head .emoji { font-size: 21px; }
+  .req-card .req-head h3 { margin: 0; font-size: 14.5px; }
+  .req-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 0;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .req-row:first-of-type { border-top: none; }
+  .req-row .k { color: var(--muted); }
+  .req-row .v { font-weight: 700; text-align: right; }
+
+  /* ── Novedades / changelog ──────────────────────────────── */
+  .changelog-entry {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    padding: 18px 20px;
+    margin-bottom: 12px;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+  }
+  .changelog-entry:hover { transform: translateX(3px); border-color: var(--blue); }
+  .changelog-entry .meta { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .changelog-entry .ver { font-weight: 800; font-size: 16px; color: var(--text); }
+  .changelog-entry .date { font-size: 12.5px; color: var(--muted); }
+  .tag {
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--tag-bg);
+    color: var(--tag-text);
+  }
+  .changelog-entry ul { margin: 0; padding-left: 20px; color: var(--text); font-size: 13px; line-height: 1.75; }
+  .changelog-entry ul li::marker { color: var(--blue); }
+
+  /* ── Equipo ─────────────────────────────────────────────── */
+  .team-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px;
+  }
+  .team-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px 14px;
+    text-align: center;
+    transition: transform 0.25s ease, border-color 0.25s ease;
+  }
+  .team-card:hover { transform: translateY(-5px); border-color: var(--blue); }
+  .team-avatar {
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 12px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--navy), var(--blue));
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 15px;
+    transition: transform 0.25s ease;
+  }
+  .team-card:hover .team-avatar { transform: scale(1.1); }
+  .team-card h4 { margin: 0 0 5px; font-size: 13.5px; line-height: 1.3; }
+  .team-card span {
+    display: inline-block;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--tag-text);
+    background: var(--tag-bg);
+    padding: 3px 9px;
+    border-radius: 999px;
+  }
+
+  /* ── Footer ─────────────────────────────────────────────── */
+  footer { background: var(--navy); color: #b9c8db; padding: 40px 20px 0; font-size: 13px; }
+  .footer-inner {
+    max-width: 940px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1.3fr 1fr 1fr 1fr;
+    gap: 28px;
+    padding-bottom: 28px;
+  }
+  .footer-brand { display: flex; flex-direction: column; gap: 10px; }
+  .footer-brand .brand-line { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; color: #fff; }
+  .footer-brand p { margin: 0; color: #93A6BF; line-height: 1.6; max-width: 230px; }
+  footer h5 { margin: 0 0 12px; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; color: #7C90AA; }
+  footer .col a { display: block; color: #cfe0f5; text-decoration: none; margin-bottom: 9px; }
+  footer .col a:hover { text-decoration: underline; }
+  footer .col p { margin: 0 0 7px; color: #cfe0f5; }
+  .footer-bottom {
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding: 16px 0;
+    max-width: 940px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    color: #7C90AA;
+    font-size: 12px;
+  }
+  .footer-bottom a { color: #93A6BF; }
+
+  /* ── Responsivo: de PC a Android — misma info, reacomodada ── */
+  @media (max-width: 900px) { .footer-inner { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 700px) {
+    .tabs-wrap { margin-top: -40px; }
+    .roles-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 560px) {
+    .footer-inner { grid-template-columns: 1fr; text-align: left; }
+    .footer-bottom { justify-content: center; text-align: center; }
+    .hero-actions a { width: 100%; justify-content: center; }
+    .hero-actions { flex-direction: column; }
+  }
+  @media (max-width: 420px) {
+    .team-grid, .req-grid, .feature-grid { grid-template-columns: 1fr; }
+  }
+
+  .hero-actions {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 24px;
+    animation: fadeInUp 0.7s ease both;
+    animation-delay: 0.32s;
+  }
+  .hero-actions a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 46px;
+    padding: 11px 24px;
+    border-radius: 12px;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 14.5px;
+    transition: transform 0.2s ease, background 0.2s ease;
+  }
+  .hero-actions a:hover { transform: translateY(-2px); }
+  .hero-actions .primary { background: #fff; color: var(--navy); }
+  .hero-actions .primary:hover { background: #dfe9f5; }
+  .hero-actions .ghost { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.35); }
+  .hero-actions .ghost:hover { background: rgba(255,255,255,0.16); }
+
+  @media (prefers-reduced-motion: reduce) {
+    header.hero .logo, header.hero h1, header.hero p, header.hero .version-badge,
+    header.hero .hero-actions, header.hero, .tab-panel.entering { animation: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><span class="emoji">🎓</span> EduTrack Family</div>
+    <nav>
+      <a href="#acerca" data-tab-link="acerca">Acerca de</a>
+      <a href="#descargas" data-tab-link="descargas">Descargas</a>
+      <a href="#requisitos" data-tab-link="requisitos">Requisitos</a>
+      <a href="#novedades" data-tab-link="novedades">Novedades</a>
+      <a href="#equipo" data-tab-link="equipo">Equipo</a>
+      <a href="versions.html">Versiones</a>
+      <a href="https://github.com/Litdemonick/edutrack-family">GitHub</a>
+      <button class="theme-toggle" id="themeToggle" title="Cambiar tema" aria-label="Cambiar tema claro/oscuro">🌙</button>
+    </nav>
+  </div>
+
+  <header class="hero">
+    <div class="logo">🎓</div>
+    <h1>EduTrack Family</h1>
+    <p>Tareas, eventos y seguridad escolar, en un solo lugar para toda la familia.</p>
+    <div class="version-badge" id="heroVersion">Versión actual: 2.0.2</div>
+    <div class="hero-actions">
+      <a class="primary" href="#descargas" data-tab-link="descargas">⬇️ Descargar</a>
+      <a class="ghost" href="https://github.com/Litdemonick/edutrack-family">💻 Código fuente</a>
+    </div>
+  </header>
+
+  <div class="tabs-wrap">
+    <div class="tabs-frame" id="tabsFrame">
+      <section id="acerca" class="tab-panel" role="tabpanel">
+        <div class="panel-intro">
+          <h2>Todo lo escolar, offline-first</h2>
+          <p>Todo se guarda en el celular primero y se sincroniza solo cuando hay internet.</p>
+        </div>
+
+        <div class="feature-grid">
+          <div class="feature-card">
+            <div class="emoji">📋</div>
+            <h4>Tareas y eventos</h4>
+            <p>Asignar, revisar y llevar el calendario, con recordatorios antes de vencer.</p>
+          </div>
+          <div class="feature-card">
+            <div class="emoji">📍</div>
+            <h4>Ubicación</h4>
+            <p>Mapa en tiempo real y zonas seguras para el padre/tutor.</p>
+          </div>
+          <div class="feature-card">
+            <div class="emoji">🧡</div>
+            <h4>¿Estás bien?</h4>
+            <p>El padre pregunta, el hijo responde con un toque.</p>
+          </div>
+          <div class="feature-card">
+            <div class="emoji">🌍</div>
+            <h4>Alerta sísmica</h4>
+            <p>Aviso con sonido y vibración para toda la familia.</p>
+          </div>
+          <div class="feature-card">
+            <div class="emoji">🔔</div>
+            <h4>Notificaciones claras</h4>
+            <p>Se sabe quién hizo qué y a quién le corresponde.</p>
+          </div>
+          <div class="feature-card">
+            <div class="emoji">🔒</div>
+            <h4>Biometría</h4>
+            <p>Huella o Windows Hello como candado rápido de reingreso.</p>
+          </div>
+        </div>
+
+        <div class="roles-grid">
+          <div class="role-card"><div class="emoji">👨‍👩‍👧</div><span>Padre/Tutor</span></div>
+          <div class="role-card"><div class="emoji">🧑‍🏫</div><span>Profesor/a</span></div>
+          <div class="role-card"><div class="emoji">🎒</div><span>Estudiante</span></div>
+        </div>
+      </section>
+
+      <section id="descargas" class="tab-panel" role="tabpanel" hidden>
+        <div class="panel-intro">
+          <h2>Elige tu plataforma</h2>
+        </div>
+
+        <div class="warn-box">
+          <strong>⚠️ Windows puede mostrar una advertencia al instalar</strong>
+          La app no tiene certificado de firma de código pagado, así que Windows/Android pueden avisar que no reconocen al desarrollador:
+          <ol>
+            <li><strong>Windows:</strong> "Más información" → "Ejecutar de todas formas". Si el bloqueo persiste, clic derecho en el instalador → Propiedades → Desbloquear.</li>
+            <li><strong>Android:</strong> habilita "Instalar apps desconocidas" para el navegador o gestor de archivos que uses.</li>
+          </ol>
+        </div>
+
+        <div class="download-grid">
+          <div class="card" id="cardAndroid">
+            <div class="emoji">🤖</div>
+            <h3>Android <span class="ver-chip" id="verAndroid">v2.0.2</span></h3>
+            <p>Archivo .apk</p>
+            <a class="btn" id="dlAndroid" href="https://github.com/Litdemonick/edutrack-family/releases/latest/download/EduTrackFamily-2.0.2.apk">Descargar</a>
+          </div>
+
+          <div class="card" id="cardWindows">
+            <div class="emoji">🪟</div>
+            <h3>Windows <span class="ver-chip" id="verWindows">v2.0.2</span></h3>
+            <p>Instalador .exe, 64 bits</p>
+            <a class="btn" id="dlWindows" href="https://github.com/Litdemonick/edutrack-family/releases/latest/download/EduTrackFamily-Setup-2.0.2.exe">Descargar</a>
+          </div>
+
+          <div class="card disabled">
+            <div class="emoji">🐧</div>
+            <h3>Linux</h3>
+            <p>Próximamente</p>
+            <a class="btn" href="#">Pronto</a>
+          </div>
+
+          <div class="card disabled">
+            <div class="emoji">🍎</div>
+            <h3>iOS / macOS</h3>
+            <p>Próximamente</p>
+            <a class="btn" href="#">Pronto</a>
+          </div>
+        </div>
+
+        <a class="all-versions-link" href="versions.html">Ver todas las versiones anteriores →</a>
+      </section>
+
+      <section id="requisitos" class="tab-panel" role="tabpanel" hidden>
+        <div class="panel-intro">
+          <h2>Lo mínimo para instalar</h2>
+        </div>
+
+        <div class="req-grid">
+          <div class="req-card">
+            <div class="req-head"><span class="emoji">🤖</span><h3>Android</h3></div>
+            <div class="req-row"><span class="k">Versión</span><span class="v">8.0+</span></div>
+            <div class="req-row"><span class="k">Espacio</span><span class="v">~100 MB</span></div>
+            <div class="req-row"><span class="k">Notificaciones</span><span class="v">Requerido</span></div>
+            <div class="req-row"><span class="k">Ubicación "siempre"</span><span class="v">Solo el hijo</span></div>
+          </div>
+          <div class="req-card">
+            <div class="req-head"><span class="emoji">🪟</span><h3>Windows</h3></div>
+            <div class="req-row"><span class="k">Versión</span><span class="v">10 / 11</span></div>
+            <div class="req-row"><span class="k">Arquitectura</span><span class="v">64 bits</span></div>
+            <div class="req-row"><span class="k">Espacio</span><span class="v">~100 MB</span></div>
+            <div class="req-row"><span class="k">GPS</span><span class="v">No aplica</span></div>
+          </div>
+          <div class="req-card">
+            <div class="req-head"><span class="emoji">🌐</span><h3>Internet</h3></div>
+            <div class="req-row"><span class="k">Uso diario</span><span class="v">Offline OK</span></div>
+            <div class="req-row"><span class="k">Sincronizar</span><span class="v">Requiere red</span></div>
+            <div class="req-row"><span class="k">Push en vivo</span><span class="v">Requiere red</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="novedades" class="tab-panel" role="tabpanel" hidden>
+        <div class="panel-intro">
+          <h2>Qué cambió</h2>
+        </div>
+
+        <div class="changelog-entry">
+          <div class="meta">
+            <span class="ver">v2.0.2</span>
+            <span class="tag">Actual</span>
+            <span class="date">Julio 2026</span>
+          </div>
+          <ul>
+            <li>Corrección: la pantalla de permisos ya no se quedaba trabada al rechazar notificaciones por accidente.</li>
+            <li>Corrección: dos celulares con la misma cuenta de estudiante ya no duplican avisos de zona segura.</li>
+            <li>Nuevo: los eventos ahora avisan con sonido y vibración cuando están por llegar, igual que las tareas.</li>
+            <li>Corrección: "Almacenamiento" en Ajustes ya no decía "solo en el dispositivo" — se sincroniza en la nube.</li>
+            <li>Página de descargas reorganizada en pestañas, con Requisitos y Equipo.</li>
+          </ul>
+        </div>
+
+        <div class="changelog-entry">
+          <div class="meta">
+            <span class="ver">v2.0.1</span>
+            <span class="date">Julio 2026</span>
+          </div>
+          <ul>
+            <li>Corrección: un nombre muy largo en el Panel de Control ya no se corta ni se superpone.</li>
+            <li>Mensajes de cuota de Firestore más claros, sin errores técnicos crudos.</li>
+          </ul>
+        </div>
+
+        <div class="changelog-entry">
+          <div class="meta">
+            <span class="ver">v2.0.0</span>
+            <span class="date">Julio 2026</span>
+          </div>
+          <ul>
+            <li>Primera versión pública para Android y Windows.</li>
+            <li>Ubicación en tiempo real, zonas seguras y check-in "¿Estás bien?".</li>
+            <li>Alerta sísmica con sonido y vibración para toda la familia.</li>
+            <li>Notificaciones que avisan quién hizo qué y a quién.</li>
+          </ul>
+        </div>
+
+        <a class="all-versions-link" href="versions.html">Ver el historial completo →</a>
+      </section>
+
+      <section id="equipo" class="tab-panel" role="tabpanel" hidden>
+        <div class="panel-intro">
+          <h2>Quién lo hizo</h2>
+        </div>
+
+        <div class="team-grid">
+          <div class="team-card">
+            <div class="team-avatar">CM</div>
+            <h4>Carlos Miranda</h4>
+            <span>Fundador</span>
+          </div>
+          <div class="team-card">
+            <div class="team-avatar">BQ</div>
+            <h4>Brayan Quintero</h4>
+            <span>Fundador</span>
+          </div>
+          <div class="team-card">
+            <div class="team-avatar">JJ</div>
+            <h4>Jorge Jiménez</h4>
+            <span>Fundador</span>
+          </div>
+          <div class="team-card">
+            <div class="team-avatar">EC</div>
+            <h4>Eliecias Cubilla</h4>
+            <span>Fundador</span>
+          </div>
+          <div class="team-card">
+            <div class="team-avatar">EM</div>
+            <h4>Eddie Man</h4>
+            <span>Fundador</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <div class="brand-line"><span class="emoji">🎓</span> EduTrack Family</div>
+        <p>App multi-familia offline-first para tareas, eventos y seguridad escolar.</p>
+      </div>
+      <div class="col">
+        <h5>Producto</h5>
+        <a href="#descargas" data-tab-link="descargas">Descargas</a>
+        <a href="#requisitos" data-tab-link="requisitos">Requisitos</a>
+        <a href="#novedades" data-tab-link="novedades">Novedades</a>
+        <a href="versions.html">Todas las versiones</a>
+      </div>
+      <div class="col">
+        <h5>Comunidad</h5>
+        <a href="https://github.com/Litdemonick/edutrack-family">Código fuente</a>
+        <a href="https://github.com/Litdemonick/edutrack-family/releases">Releases en GitHub</a>
+        <a href="https://github.com/Litdemonick/edutrack-family/issues">Reportar un problema</a>
+      </div>
+      <div class="col">
+        <h5>Equipo</h5>
+        <p>Carlos Miranda</p>
+        <p>Brayan Quintero</p>
+        <p>Jorge Jiménez</p>
+        <p>Eliecias Cubilla</p>
+        <p>Eddie Man</p>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 EduTrack Family. Hecho con Flutter.</span>
+      <a href="#" id="backToTop">Volver arriba ↑</a>
+    </div>
+  </footer>
+
+  <script>
+    // ── Tema claro/oscuro: sigue el sistema por defecto, con toggle manual persistido ──
+    (function () {
+      const root = document.documentElement;
+      const btn = document.getElementById('themeToggle');
+      const saved = localStorage.getItem('theme');
+      if (saved) { root.setAttribute('data-theme', saved); }
+      function current() {
+        return root.getAttribute('data-theme') ||
+          (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      }
+      function updateIcon() { btn.textContent = current() === 'dark' ? '☀️' : '🌙'; }
+      updateIcon();
+      btn.addEventListener('click', () => {
+        const next = current() === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+        updateIcon();
+        btn.classList.remove('spin');
+        void btn.offsetWidth;
+        btn.classList.add('spin');
+      });
+    })();
+
+    // ── Pestañas reales, UNA sola navegación: el nav del header de
+    // arriba controla qué panel se ve (no hay una segunda barra de
+    // botones duplicada adentro del marco). El botón "Descargar" del
+    // hero y los enlaces del footer usan el mismo mecanismo. ──────
+    (function () {
+      const panels = document.querySelectorAll('.tab-panel');
+      const tabLinks = document.querySelectorAll('[data-tab-link]');
+      const navLinks = document.querySelectorAll('.topbar nav a[data-tab-link]');
+      const frame = document.getElementById('tabsFrame');
+
+      function activate(id, opts) {
+        opts = opts || {};
+        if (!document.getElementById(id)) id = 'acerca';
+        panels.forEach((p) => { p.hidden = p.id !== id; });
+        navLinks.forEach((a) => a.classList.toggle('active', a.dataset.tabLink === id));
+        const panel = document.getElementById(id);
+        panel.classList.remove('entering');
+        void panel.offsetWidth;
+        panel.classList.add('entering');
+        history.replaceState(null, '', '#' + id);
+        if (opts.scroll) {
+          frame.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+
+      tabLinks.forEach((a) => a.addEventListener('click', (e) => {
+        e.preventDefault();
+        activate(a.dataset.tabLink, { scroll: true });
+      }));
+      const backToTop = document.getElementById('backToTop');
+      if (backToTop) {
+        backToTop.addEventListener('click', (e) => {
+          e.preventDefault();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      }
+
+      activate((location.hash || '#acerca').slice(1));
+    })();
+
+    // ── Trae la última release de GitHub y actualiza versión + enlaces ──
+    (function () {
+      fetch('https://api.github.com/repos/Litdemonick/edutrack-family/releases/latest')
+        .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+        .then((rel) => {
+          const ver = rel.tag_name || rel.name || '';
+          if (!ver) return;
+          const heroVer = document.getElementById('heroVersion');
+          if (heroVer) heroVer.textContent = 'Versión actual: ' + ver.replace(/^v/, '');
+
+          (rel.assets || []).forEach((asset) => {
+            const name = asset.name.toLowerCase();
+            if (name.endsWith('.apk')) {
+              document.getElementById('verAndroid').textContent = ver;
+              document.getElementById('dlAndroid').href = asset.browser_download_url;
+            } else if (name.endsWith('.exe')) {
+              document.getElementById('verWindows').textContent = ver;
+              document.getElementById('dlWindows').href = asset.browser_download_url;
+            }
+          });
+        })
+        .catch(() => {
+          // Sin red o límite de la API de GitHub: se quedan los enlaces
+          // fijos a /releases/latest/download/... que ya funcionan igual.
+        });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,98 @@
+{
+  "project_info": {
+    "project_number": "378454359271",
+    "project_id": "edutrack-family",
+    "storage_bucket": "edutrack-family.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:378454359271:android:a525fb0c1fd65510197642",
+        "android_client_info": {
+          "package_name": "com.edutrack.family"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "378454359271-0atd6c73ge11crmn2ijlvslqnpuisfce.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.edutrack.family",
+            "certificate_hash": "f6bdf32b588ba0ce9abf5f9b464494bd7ab8eeff"
+          }
+        },
+        {
+          "client_id": "378454359271-r3kv808cmcm9h3snr5c3j1nuo5nhvmcv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.edutrack.family",
+            "certificate_hash": "c767c5abf781d0177e2918c3a0233c8efd63b334"
+          }
+        },
+        {
+          "client_id": "378454359271-9k1ldm7o1fnjusmgeklnotnnvbrhtmkq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyACWMpSZGUzpT5a6bsqVRYcorXm5k3KMOs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "378454359271-9k1ldm7o1fnjusmgeklnotnnvbrhtmkq.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "378454359271-fkr425dse6mc95p27e522ot7i7td0lnn.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.edutrack"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:378454359271:android:79fbd0fedc83eb6b197642",
+        "android_client_info": {
+          "package_name": "com.example.edutrack"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "378454359271-9k1ldm7o1fnjusmgeklnotnnvbrhtmkq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyACWMpSZGUzpT5a6bsqVRYcorXm5k3KMOs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "378454359271-9k1ldm7o1fnjusmgeklnotnnvbrhtmkq.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "378454359271-fkr425dse6mc95p27e522ot7i7td0lnn.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.edutrack"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

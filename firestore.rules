@@ -1,0 +1,271 @@
+rules_version = '2';
+
+// ═══════════════════════════════════════════════════════════════
+// EDUTRACK FAMILY 2.0 — Reglas de seguridad multi-tenant
+//
+// Roles (custom claim request.auth.token.role):
+//   parent  — padre/tutor: gestiona sus hijos vinculados
+//   teacher — profesor: tareas/eventos de sus estudiantes vinculados
+//   student — el niño: su uid ES el studentId (custom token)
+//
+// Principio: TODO lo de un estudiante vive bajo students/{studentId}.
+// El doc padre lleva parentIds[] y teacherIds[]; un get() a ese doc
+// autoriza el subárbol completo.
+//
+// El backend (workers/edutrack-api, Cloudflare Workers) accede con
+// un service account de Google Cloud — eso IGNORA estas reglas por
+// completo (igual que hacía el SDK de Admin en Cloud Functions), así
+// que linkCodes/seismicEvents siguen protegidos del lado del cliente
+// aunque el backend sí pueda leerlos/escribirlos.
+// ═══════════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return isSignedIn() ? request.auth.token.get('role', '') : '';
+    }
+
+    // Rol efectivo: custom claim si existe; si no, el doc users/{uid}.
+    // (Fallback para cuentas creadas antes de que registerRole asigne
+    // el claim — p. ej. mientras Functions no está desplegado.)
+    function effectiveRole() {
+      return role() != ''
+        ? role()
+        : get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    // ── Perfil de usuario ─────────────────────────────────────
+    match /users/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      // El doc se crea sin rol privilegiado real: el claim lo pone
+      // la Cloud Function registerRole; aquí solo validamos forma.
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.role in ['parent', 'teacher']
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() <= 80;
+      allow update: if isSignedIn()
+        && request.auth.uid == uid
+        // El rol no se auto-modifica por el cliente
+        && request.resource.data.role == resource.data.role;
+      allow delete: if false;
+
+      // Registro de dispositivos FCM del propio usuario
+      match /devices/{installId} {
+        allow read, write: if isSignedIn() && request.auth.uid == uid;
+      }
+    }
+
+    // ── Estudiante y su subárbol ──────────────────────────────
+    match /students/{studentId} {
+
+      function studentData() {
+        return get(/databases/$(database)/documents/students/$(studentId)).data;
+      }
+
+      function isGuardian() {
+        return isSignedIn() && request.auth.uid in studentData().parentIds;
+      }
+
+      function isTeacherOf() {
+        return isSignedIn() && request.auth.uid in studentData().teacherIds;
+      }
+
+      function isTheChild() {
+        return isSignedIn() && request.auth.uid == studentId;
+      }
+
+      function canRead() {
+        return isGuardian() || isTeacherOf() || isTheChild();
+      }
+
+      // Variante para el PROPIO doc students/{studentId}: usa
+      // resource.data directo (ya disponible) en vez de un get() que
+      // re-lee el mismo documento. Firestore rechaza con
+      // PERMISSION_DENIED las queries de lista (p. ej. "where
+      // parentIds array_contains uid", que usa getLinkedStudents()
+      // para armar Mis hijos/Mis alumnos) cuando la regla depende de
+      // un get() sobre el documento que la propia query está
+      // evaluando. Las subcolecciones de abajo sí necesitan el
+      // get() de studentData() porque ahí resource es OTRO
+      // documento (la tarea/evento), así que canRead()/isGuardian()
+      // sin cambios siguen siendo correctos para ellas.
+      function isGuardianOfSelf() {
+        return isSignedIn() && request.auth.uid in resource.data.parentIds;
+      }
+
+      function isTeacherOfSelf() {
+        return isSignedIn() && request.auth.uid in resource.data.teacherIds;
+      }
+
+      function canReadSelf() {
+        return isGuardianOfSelf() || isTeacherOfSelf() || isTheChild();
+      }
+
+      // Perfil del estudiante
+      allow create: if isSignedIn()
+        && effectiveRole() == 'parent'
+        && request.auth.uid in request.resource.data.parentIds
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 80;
+      allow read: if canReadSelf();
+      // Solo guardianes editan el perfil (profesores se vinculan por
+      // Cloud Function con Admin SDK, que ignora estas reglas)
+      allow update: if isGuardian()
+        // Un guardián no puede dejar al estudiante sin padres por error
+        && request.resource.data.parentIds.size() > 0;
+      allow delete: if isGuardian();
+
+      // ── Tareas ──────────────────────────────────────────────
+      // Aprobar/rechazar (pendingReview → completed|pending) queda
+      // reservado al mismo ROL que asignó la tarea (padre asignó →
+      // solo padres deciden; profesor asignó → solo profesores),
+      // aunque ambos roles siempre pueden LEER y editar el resto de
+      // los campos — así se ve el mismo panel completo para los dos,
+      // solo la decisión de revisión queda acotada. Tareas viejas sin
+      // assigned_by_role (o si nunca se guardó) no quedan bloqueadas:
+      // cualquiera de los dos roles puede decidir en ese caso.
+      function isReviewDecision() {
+        return resource.data.status == 'pendingReview'
+          && request.resource.data.status in ['completed', 'pending'];
+      }
+
+      function canReviewTask() {
+        return resource.data.get('assigned_by_role', null) == null
+          || effectiveRole() == resource.data.get('assigned_by_role', null);
+      }
+
+      // Editar campos (título, materia, fecha, etc., fuera de una
+      // decisión de revisión) y eliminar quedan reservados a quien
+      // CREÓ esa tarea específicamente (uid exacto, no solo el rol)
+      // — el otro padre/tutor o el otro profesor la ve igual, pero no
+      // la puede tocar ni borrar. Tareas viejas sin assigned_by no
+      // quedan bloqueadas.
+      function isTaskCreator() {
+        return resource.data.get('assigned_by', null) == null
+          || resource.data.get('assigned_by', null) == request.auth.uid;
+      }
+
+      match /tasks/{taskId} {
+        allow read: if canRead();
+        allow create: if isGuardian() || isTeacherOf();
+        allow delete: if (isGuardian() || isTeacherOf()) && isTaskCreator();
+        allow update: if
+          ((isGuardian() || isTeacherOf())
+           && isReviewDecision() && canReviewTask())
+          || ((isGuardian() || isTeacherOf())
+              && !isReviewDecision() && isTaskCreator())
+          // El estudiante solo toca los campos de su flujo de entrega —
+          // nombres en snake_case, iguales a los que manda TaskModel.
+          // toFirestore() (antes decían completionNote/updatedAt/etc en
+          // camelCase, que nunca coincidía con nada real — el envío del
+          // estudiante quedaba rechazado en silencio, siempre).
+          || (isTheChild()
+              && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'completion_note', 'updated_at',
+                           'conversation_history', 'has_evidence_images',
+                           'completed_at', 'evidence_photo_paths']));
+      }
+
+      // ── Eventos ─────────────────────────────────────────────
+      // Igual que tareas: editar/eliminar reservado a quien lo creó
+      // (uid exacto) — el resto lo ve pero no lo toca. Eventos viejos
+      // sin assigned_by no quedan bloqueados.
+      function isEventCreator() {
+        return resource.data.get('assigned_by', null) == null
+          || resource.data.get('assigned_by', null) == request.auth.uid;
+      }
+
+      match /events/{eventId} {
+        allow read: if canRead();
+        allow create: if isGuardian() || isTeacherOf();
+        allow update, delete: if (isGuardian() || isTeacherOf()) && isEventCreator();
+      }
+
+      // ── Horario semanal (data-driven) ───────────────────────
+      match /scheduleBlocks/{blockId} {
+        allow read: if canRead();
+        allow write: if isGuardian() || isTeacherOf();
+      }
+
+      // ── Evidencias (metadata; los bytes van a Storage) ──────
+      match /evidences/{evidenceId} {
+        allow read: if canRead();
+        allow create: if isTheChild() || isGuardian();
+        allow update: if isGuardian() || isTeacherOf() || isTheChild();
+        allow delete: if isGuardian();
+      }
+
+      // ── Ubicación: padres y el propio hijo leen; SOLO el hijo
+      //    escribe (posiciones y su doc de consentimiento
+      //    locations/consent). Profesores NUNCA. ────────────────
+      match /locations/{document=**} {
+        allow read: if isGuardian() || isTheChild();
+        allow write: if isTheChild();
+      }
+
+      // ── Zonas (geocercas): padres gestionan, hijo las lee ───
+      match /zones/{zoneId} {
+        allow read: if isGuardian() || isTheChild();
+        allow write: if isGuardian();
+      }
+
+      match /zoneEvents/{eventId} {
+        allow read: if isGuardian();
+        allow create: if isTheChild();
+        allow update, delete: if false;
+      }
+
+      // ── Bitácora de alertas sísmicas (la escribe el Worker) ──
+      // Lectura para los 3 roles vinculados — el sismo debe verlo
+      // padre/tutor, profesor Y el propio estudiante; escritos solo
+      // por el backend (service account, no pasa por estas reglas).
+      match /seismicAlertsLog/{quakeId} {
+        allow read: if canRead();
+        allow write: if false;
+      }
+
+      // ── Check-in "¿Estás bien?" ─────────────────────────────
+      match /wellnessChecks/{checkId} {
+        allow read: if isGuardian() || isTheChild();
+        allow create: if isGuardian();
+        // El hijo solo responde (status/respondedAt); el cierre por
+        // timeout lo hace la Cloud Function (Admin SDK)
+        allow update: if isTheChild()
+          && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['status', 'respondedAt']);
+        allow delete: if false;
+      }
+    }
+
+    // ── Códigos de vinculación: SOLO el backend (Cloudflare) ──
+    match /linkCodes/{code} {
+      allow read, write: if false;
+    }
+
+    // ── Dueño actual de cada instalación (token FCM): SOLO el
+    // backend — necesita poder borrar el registro de un uid AJENO
+    // cuando el mismo dispositivo cambia de cuenta, algo que un
+    // usuario normal no puede hacer sobre otro (ver /register-device
+    // en el Worker).
+    match /deviceOwners/{installId} {
+      allow read, write: if false;
+    }
+
+    // ── Eventos sísmicos: solo lectura (escribe el backend) ───
+    match /seismicEvents/{eventId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ── Todo lo demás: denegado ───────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

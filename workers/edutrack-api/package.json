@@ -1,0 +1,17 @@
+{
+  "name": "edutrack-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend de EduTrack Family 2.0 — Cloudflare Workers (gratis, sin tarjeta). Reemplaza a las Cloud Functions de Firebase (que exigían el plan Blaze).",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.28.0"
+  },
+  "dependencies": {
+    "jose": "^5.9.6"
+  }
+}

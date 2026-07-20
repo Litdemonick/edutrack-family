@@ -1,0 +1,56 @@
+// ═══════════════════════════════════════════════════════════════
+// FIREBASE STORAGE RULES — EduTrack Family 2.0
+// Fotos de evidencia/referencia por estudiante + fotos de perfil.
+// Sin lectura pública: solo la familia/profesores vinculados.
+// ═══════════════════════════════════════════════════════════════
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Autorización basada en el doc students/{studentId} de Firestore
+    function canAccessStudent(studentId) {
+      return isSignedIn() && (
+        request.auth.uid == studentId
+        || request.auth.uid in firestore.get(
+             /databases/(default)/documents/students/$(studentId)).data.parentIds
+        || request.auth.uid in firestore.get(
+             /databases/(default)/documents/students/$(studentId)).data.teacherIds
+      );
+    }
+
+    function isValidImage() {
+      return request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // Evidencias del estudiante (sube el hijo, revisan padres/profes)
+    match /evidence/{studentId}/{taskId}/{fileName} {
+      allow read: if canAccessStudent(studentId);
+      allow write: if canAccessStudent(studentId) && isValidImage();
+      allow delete: if canAccessStudent(studentId);
+    }
+
+    // Imágenes de referencia (sube padre/profesor)
+    match /reference/{studentId}/{taskId}/{fileName} {
+      allow read: if canAccessStudent(studentId);
+      allow write: if canAccessStudent(studentId) && isValidImage();
+      allow delete: if canAccessStudent(studentId);
+    }
+
+    // Foto de perfil del propio usuario
+    match /profiles/{uid}/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == uid && isValidImage();
+    }
+
+    // Todo lo demás: denegado
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 15+ (API 35): opt-out explícito de edge-to-edge para UCropActivity.
+         Sin esto, Android 15 fuerza que el contenido se dibuje bajo status bar y nav bar,
+         cortando el toolbar superior y el control de Scale inferior. -->
+    <style name="UCropTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:windowTranslucentNavigation">false</item>
+        <item name="android:statusBarColor">#FF0F2744</item>
+        <item name="android:navigationBarColor">#FFFFFFFF</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+    </style>
+</resources>

@@ -1,0 +1,25 @@
+name = "edutrack-family-api"
+main = "src/index.js"
+compatibility_date = "2026-06-01"
+
+# Cron: cada minuto, evalúa timeouts de check-in y actividad sísmica.
+# El free tier de Cloudflare permite triggers cada 1 minuto sin tarjeta.
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+FIREBASE_PROJECT_ID = "edutrack-family"
+
+# Fotos de perfil (Cloudflare R2 — gratis hasta 10GB, sin tarjeta).
+# El bucket se crea una vez a mano: `wrangler r2 bucket create edutrack-profile-photos`
+# (o desde el dashboard de Cloudflare, pestaña R2 → Create bucket).
+[[r2_buckets]]
+binding = "PROFILE_PHOTOS"
+bucket_name = "edutrack-profile-photos"
+
+# Secretos (NUNCA en este archivo — se cargan con `wrangler secret put`,
+# nunca pasan por el chat ni por git):
+#   FIREBASE_CLIENT_EMAIL   → client_email del service account JSON
+#   FIREBASE_PRIVATE_KEY    → private_key del service account JSON (con \n literales)
+#
+# Ver workers/edutrack-api/README.md para el paso a paso.
